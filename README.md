@@ -85,7 +85,7 @@ For more stable and statistically reliable measurements it is recommended to run
 
 ```
 --seconds=15
---pause-ms=100
+--pause-ms=1000
 ```
 
 Longer benchmark duration reduces noise caused by OS scheduling, CPU frequency changes, and background activity.
