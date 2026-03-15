@@ -53,6 +53,8 @@ The project uses **CMake**.
 ```bash
 git clone https://github.com/efmsoft/logbench.git
 cd logbench
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
 ## Command Line Parameters
