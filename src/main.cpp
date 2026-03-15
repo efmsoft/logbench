@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -120,6 +121,9 @@ static uint64_t RunOnce(
 {
   std::atomic_bool stop(false);
   uint64_t cycles = 0;
+  std::mutex startMutex;
+  std::condition_variable startCv;
+  bool started = false;
 
   std::thread worker(
     [&]()
@@ -130,6 +134,12 @@ static uint64_t RunOnce(
         logOnce();
       }
 
+      {
+        std::lock_guard<std::mutex> lock(startMutex);
+        started = true;
+      }
+      startCv.notify_one();
+
       auto end = Clock::now() + std::chrono::seconds(seconds);
       while ((stop.load(std::memory_order_relaxed) == false) &&
              (Clock::now() < end))
@@ -139,6 +149,17 @@ static uint64_t RunOnce(
       }
     }
   );
+
+  {
+    std::unique_lock<std::mutex> lock(startMutex);
+    startCv.wait(
+      lock,
+      [&]()
+      {
+        return started;
+      }
+    );
+  }
 
   std::this_thread::sleep_for(std::chrono::seconds(seconds));
   stop.store(true, std::memory_order_relaxed);
@@ -258,6 +279,7 @@ struct Cli
   int Seconds = 3;
   int Repeat = 5;
   int WarmupMs = 300;
+  int PauseMs = 250;
   std::string OutDir = ".";
   std::string Filter;
 };
@@ -400,11 +422,15 @@ static Cli ParseCli(int argc, char** argv)
       if (cli.OutDir.empty())
         cli.OutDir = ".";
     }
+    else if (StartsWith(a, "--pause-ms="))
+    {
+      cli.PauseMs = (std::max)(0, std::stoi(a.substr(11)));
+    }
     else if (a == "--help" || a == "-h")
     {
       std::cout
-        << "Usage: logbench [--seconds=N] [--repeat=N] [--warmup-ms=N] [--outdir=PATH] [--filter=ITEMS]\n"
-        << "Default: --seconds=3 --repeat=5 --warmup-ms=300 --outdir=.\n"
+        << "Usage: logbench [--seconds=N] [--repeat=N] [--warmup-ms=N] [--pause-ms=N] [--outdir=PATH] [--filter=ITEMS]\n"
+        << "Default: --seconds=3 --repeat=5 --warmup-ms=300 --pause-ms=250 --outdir=.\n"
         << "Filter tokens (comma-separated): library, mode, format.\n"
         << "Examples:\n"
         << "  --filter=logme\n"
@@ -435,6 +461,14 @@ static std::string JoinPath(const std::string& dir, const std::string& file)
     return dir + file;
 
   return dir + sep + file;
+}
+
+static void PauseBetweenRuns(int pauseMs)
+{
+  if (pauseMs > 0)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(pauseMs));
+  }
 }
 
 static Logme::OutputFlags MinimalLogmeFlags()
@@ -474,7 +508,7 @@ struct LogmeDriver
     if (mode == BenchMode::File || mode == BenchMode::FileConsole)
     {
       File = std::make_shared<Logme::FileBackend>(Ch);
-      File->SetMaxSize(128 * 1024 * 1024); // To avoid rotation during benchmark
+      File->SetMaxSize(0); // To avoid rotation during benchmark
       File->SetAppend(false);
 
       std::error_code ec;
@@ -659,7 +693,14 @@ struct QuillDriver
       sinks.push_back(std::move(file_sink));
     }
 
-    Logger = QuillFrontend::create_or_get_logger(loggerName, std::move(sinks));
+    quill::PatternFormatterOptions pattern;
+    pattern.format_pattern = "%(message)";
+
+    Logger = QuillFrontend::create_or_get_logger(
+      loggerName,
+      std::move(sinks),
+      pattern);
+
     return Logger != nullptr;
   }
 
@@ -798,6 +839,9 @@ int main(int argc, char** argv)
       {
         auto logOnce = d.MakeLogOnce(fmt);
         runs.push_back(RunOnce(cli.Seconds, cli.WarmupMs, std::move(logOnce)));
+
+        if (i + 1 < cli.Repeat)
+          PauseBetweenRuns(cli.PauseMs);
       }
 
       r.Cycles = Median(runs);
@@ -828,6 +872,9 @@ int main(int argc, char** argv)
     {
       auto logOnce = d.MakeLogOnce();
       runs.push_back(RunOnce(cli.Seconds, cli.WarmupMs, std::move(logOnce)));
+
+      if (i + 1 < cli.Repeat)
+        PauseBetweenRuns(cli.PauseMs);
     }
 
     BenchResult r;
@@ -862,6 +909,9 @@ int main(int argc, char** argv)
     {
       auto logOnce = d.MakeLogOnce();
       runs.push_back(RunOnce(cli.Seconds, cli.WarmupMs, std::move(logOnce)));
+
+      if (i + 1 < cli.Repeat)
+        PauseBetweenRuns(cli.PauseMs);
     }
 
     BenchResult r;
@@ -897,6 +947,9 @@ int main(int argc, char** argv)
     {
       auto logOnce = d.MakeLogOnce();
       runs.push_back(RunOnce(cli.Seconds, cli.WarmupMs, std::move(logOnce)));
+
+      if (i + 1 < cli.Repeat)
+        PauseBetweenRuns(cli.PauseMs);
     }
 
     BenchResult r;

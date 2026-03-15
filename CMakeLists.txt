@@ -18,8 +18,7 @@ set(LOGME_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(LOGME_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 
 
-#set(LOGME_SOURCE_DIR "" CACHE PATH "Path to local logme sources")
-set(LOGME_SOURCE_DIR "c:/Source/infra/logbench/logme")
+set(LOGME_SOURCE_DIR "" CACHE PATH "Path to local logme sources")
 
 # Dependencies (pinned tags for reproducibility)
 if (LOGME_SOURCE_DIR)
@@ -36,7 +35,7 @@ else()
   FetchContent_Declare(
     logme
     GIT_REPOSITORY https://github.com/efmsoft/logme.git
-    GIT_TAG v2.4.12
+    GIT_TAG v2.4.13
   )
 endif()
 
