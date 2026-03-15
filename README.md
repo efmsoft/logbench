@@ -51,7 +51,7 @@ The tests measure:
 The project uses **CMake**.
 
 ```bash
-git clone https://github.com/<your-repo>/logbench.git
+git clone https://github.com/efmsoft/logbench.git
 cd logbench
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
