@@ -53,5 +53,39 @@ The project uses **CMake**.
 ```bash
 git clone https://github.com/efmsoft/logbench.git
 cd logbench
+```
+
+## Command Line Parameters
+
+`logbench` supports several command line parameters that control benchmark execution.
+
+If the program is started **without parameters**, the following defaults are used:
+
+```
+--seconds=3
+--repeat=5
+--warmup-ms=300
+--pause-ms=250
+--outdir=.
+```
+
+### Parameter description
+
+- **--seconds** — duration of a single benchmark run.
+- **--repeat** — number of repetitions for each test.
+- **--warmup-ms** — warm-up time before the measurement begins.
+- **--pause-ms** — pause between benchmark runs.
+- **--outdir** — directory where benchmark results are written.
+
+### Recommended settings for more accurate results
+
+For more stable and statistically reliable measurements it is recommended to run the benchmark with longer durations, for example:
+
+```
+--seconds=15
+--pause-ms=100
+```
+
+Longer benchmark duration reduces noise caused by OS scheduling, CPU frequency changes, and background activity.
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
