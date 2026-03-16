@@ -54,7 +54,7 @@ The project uses **CMake**.
 git clone https://github.com/efmsoft/logbench.git
 cd logbench
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --build build --config Release
 ```
 
 ## Command Line Parameters
