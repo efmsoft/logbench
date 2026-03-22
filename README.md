@@ -6,6 +6,12 @@ The goal of the project is to provide a **fair and transparent comparison of log
 
 The project is designed to help developers understand the **real runtime cost of logging** and evaluate which logging library best fits their needs.
 
+## Article
+
+A detailed write-up of the benchmark (methodology, graphs, analysis):
+
+👉 docs/article.md
+
 ## Compared Libraries
 
 The benchmark currently includes the following logging libraries:
