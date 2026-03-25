@@ -1,60 +1,110 @@
 # logbench
 
-**logbench** is a benchmarking tool for measuring the performance of popular C++ logging libraries under different workloads and output modes.
+**logbench** is a C++ benchmark for measuring the runtime cost of popular logging libraries under several practical output modes.
 
-The goal of the project is to provide a **fair and transparent comparison of logging performance**, including scenarios such as writing to files, console output, and disabled logging. The benchmark focuses on throughput, latency, and scalability across multiple threads.
+The project focuses on a simple question:
 
-The project is designed to help developers understand the **real runtime cost of logging** and evaluate which logging library best fits their needs.
+> How much does a single logging call actually cost?
 
-## Article
+Instead of testing only one synthetic case, `logbench` compares libraries in scenarios that matter in real code:
 
-A detailed write-up of the benchmark (methodology, graphs, analysis):
+- logging disabled (`null`)
+- writing to a file
+- writing to the console
+- writing to both file and console
 
-👉 docs/article.md
+The goal is not to crown a universal winner, but to provide a **fair, transparent, and reproducible comparison** that helps evaluate the real overhead of logging in hot paths.
+
+## Included Article
+
+A detailed write-up with methodology, charts, and discussion is available here:
+
+- [docs/article.md](docs/article.md)
 
 ## Compared Libraries
 
-The benchmark currently includes the following logging libraries:
+The benchmark currently covers:
 
-- **logme**
-- **spdlog**
-- **quill**
-- **easylogging++**
+- [logme](https://github.com/efmsoft/logme)
+- [spdlog](https://github.com/gabime/spdlog)
+- [quill](https://github.com/odygrd/quill)
+- [easylogging++](https://github.com/amrayn/easyloggingpp)
 
-Additional libraries may be added in the future.
+For **logme**, multiple formatting APIs are also benchmarked separately:
 
-## Benchmark Goals
+- C-style (`printf`-like)
+- `std::format`
+- iostream
 
-The project aims to:
+This makes it possible to look not only at library architecture, but also at the cost of formatting style.
 
-- Measure **logging throughput** under different workloads
-- Evaluate **multithreaded scalability**
-- Compare performance across **different sinks** (null, file, console)
-- Provide **repeatable and reproducible tests**
-- Avoid biased setups or library-specific optimizations
+## What logbench Measures
 
-All libraries are configured as similarly as possible to ensure the comparison is meaningful.
+The benchmark reports the **maximum number of log messages per second** for each scenario.
+
+The main things it is intended to highlight are:
+
+- logging call overhead when output is disabled
+- throughput when writing to real sinks
+- the impact of formatting API choice
+- scalability across different workloads
 
 ## Benchmark Scenarios
 
-Typical benchmark scenarios include:
+The current scenarios are:
 
-- Logging disabled (baseline overhead)
-- Logging to a file
-- Logging to the console
-- Single-threaded logging
-- Multi-threaded logging
-- Short and formatted log messages
+| Scenario | Description |
+|---|---|
+| `null` | Logging call is executed, but nothing is written |
+| `file` | Messages are written to a file |
+| `console` | Messages are written to the console |
+| `file + console` | Messages are written to both outputs |
 
-The tests measure:
+The `null` case is especially useful because it shows the overhead of the logging path itself when output is disabled at runtime rather than compiled out.
 
-- messages per second
-- total execution time
-- CPU overhead
+## Benchmark Philosophy
+
+The benchmark is intentionally kept simple and comparable across libraries.
+
+To reduce unrelated noise:
+
+- a **minimal output format** is used
+- extra fields such as timestamps, thread id, logger name, and level are excluded
+- tests are repeated multiple times
+- the **median** result is used as the final value
+
+The intention is to avoid library-specific tuning that would make the comparison less useful.
+
+## Default Run Parameters
+
+If `logbench` is started without parameters, the following defaults are used:
+
+```text
+--seconds=3
+--repeat=5
+--warmup-ms=300
+--pause-ms=250
+--outdir=.
+```
+
+Parameter summary:
+
+- `--seconds` — duration of one benchmark run
+- `--repeat` — number of repetitions for each test
+- `--warmup-ms` — warm-up duration before measurement
+- `--pause-ms` — pause between repetitions
+- `--outdir` — directory for generated benchmark results
+
+For more stable numbers, a longer run is recommended, for example:
+
+```text
+--seconds=15
+--pause-ms=1000
+```
 
 ## Build
 
-The project uses **CMake**.
+The project uses CMake.
 
 ```bash
 git clone https://github.com/efmsoft/logbench.git
@@ -63,37 +113,25 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
-## Command Line Parameters
+## Run
 
-`logbench` supports several command line parameters that control benchmark execution.
+Example:
 
-If the program is started **without parameters**, the following defaults are used:
-
-```
---seconds=3
---repeat=5
---warmup-ms=300
---pause-ms=250
---outdir=.
+```bash
+./build/logbench --seconds=15
 ```
 
-### Parameter description
+On Windows, depending on the generator, you may run the produced executable from the build directory instead.
 
-- **--seconds** — duration of a single benchmark run.
-- **--repeat** — number of repetitions for each test.
-- **--warmup-ms** — warm-up time before the measurement begins.
-- **--pause-ms** — pause between benchmark runs.
-- **--outdir** — directory where benchmark results are written.
+## Why This Repository Exists
 
-### Recommended settings for more accurate results
+Logging is often treated as infrastructure code and evaluated mostly by API convenience or popularity.
 
-For more stable and statistically reliable measurements it is recommended to run the benchmark with longer durations, for example:
+In practice, it can become part of the critical execution path:
 
-```
---seconds=15
---pause-ms=1000
-```
+- in high-frequency code
+- in multi-threaded services
+- in low-latency systems
+- in applications with large amounts of disabled debug logging
 
-Longer benchmark duration reduces noise caused by OS scheduling, CPU frequency changes, and background activity.
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+`logbench` exists to make that cost visible and easy to reproduce.

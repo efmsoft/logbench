@@ -1,166 +1,168 @@
-# What Does LOG_INFO() Really Cost?: Benchmark of C++ Logging Libraries
+# What Does LOG_INFO() Really Cost? A Benchmark of C++ Logging Libraries
 
-Logging exists in almost every C++ project. Almost any service, daemon or library sooner or later accumulates lines like LOG_INFO(...) or logger.debug(...).
+We benchmarked several C++ logging libraries to answer a simple question:
 
-Most often, a library is chosen based on habit or popularity — spdlog, quill, easylogging++, etc. At the same time, few people check what price the application pays for logging.
+> How much does a single logging call actually cost?
 
-In high-load systems, logging can be performed:
+Logging appears in almost every C++ project. Almost any service, daemon, or library eventually accumulates lines such as `LOG_INFO(...)` or `logger.debug(...)`.
+
+Most of the time, a logging library is chosen based on habit, ecosystem, or popularity — `spdlog`, `quill`, `easylogging++`, and others. Much less often, developers actually measure what price the application pays for logging.
+
+In high-load systems, logging can happen:
 
 - millions of times per second
 - from multiple threads
 - with string formatting
-- with writing to a file or console
+- with output to a file or console
 
-At this moment, the logging library begins to enter **the critical execution path** of the program.
+At that point, the logging library becomes part of the **critical execution path**.
 
-Over time, a quite practical question arises:
+To get a more concrete answer, we wrote a small benchmark.
 
-> How much does a single LOG_INFO call actually cost?
-
-To get a more concrete answer, a small benchmark was written.
-
-Test sources are open:
+The benchmark source code is available here:
 
 https://github.com/efmsoft/logbench
 
 Anyone can build it and reproduce the results.
 
-## What exactly is being tested
+## What is being tested
 
-The benchmark measures **the maximum number of logging messages per second**.
+The benchmark measures the **maximum number of log messages per second**.
 
-Four scenarios are tested:
+Four scenarios are covered:
 
-| scenario       | description                     |
-|----------------|---------------------------------|
-| null           | logging disabled                |
-| file           | writing to file                 |
-| console        | output to console               |
-| file + console | writing to file and console     |
+| Scenario | Description |
+|---|---|
+| `null` | Logging is disabled at runtime |
+| `file` | Messages are written to a file |
+| `console` | Messages are written to the console |
+| `file + console` | Messages are written to both file and console |
 
-The null scenario is especially interesting.
+The `null` scenario is especially interesting.
 
-It shows the **cost of the logging call itself** when the message is not actually output.
+It shows the **cost of the logging call itself** when the message is not actually written anywhere.
 
-That is, the library overhead is measured.
+In other words, it measures library overhead.
 
-## Which libraries were involved
+## Which libraries were benchmarked
 
-The following libraries participated in the testing (with links to repositories):
+The following libraries were included in the benchmark:
 
-- logme — https://github.com/efmsoft/logme
-- spdlog — https://github.com/gabime/spdlog
-- quill — https://github.com/odygrd/quill
-- easylogging++ — https://github.com/amrayn/easyloggingpp
+- `logme` — https://github.com/efmsoft/logme
+- `spdlog` — https://github.com/gabime/spdlog
+- `quill` — https://github.com/odygrd/quill
+- `easylogging++` — https://github.com/amrayn/easyloggingpp
 
-For logme, different formatting APIs were additionally tested:
+For `logme`, several formatting APIs were also tested separately:
 
-- C-style (printf)
-- std::format
+- C-style (`printf`-like)
+- `std::format`
 - iostream
 
-This allows you to separately look at the impact of formatting and understand how strongly the choice of API affects the final performance.
+This makes it possible to look separately at the cost of formatting and to understand how much the API choice affects the final result.
 
 ## Test system configuration
 
-Testing was performed on the following system:
+The benchmark was run on the following system:
+
 - **CPU**: 13th Gen Intel(R) Core(TM) i9-13900HX (2.20 GHz)
 - **OS**: Windows 11 Home
 - **Version**: 25H2
 
-It is important to note that the results presented below were obtained on a **release build** of the benchmark.
+The results shown below were obtained using a **Release** build of the benchmark.
 
-## Testing conditions
+## Test conditions
 
-To make the comparison as correct as possible, **minimal output format** was used in all libraries.
+To keep the comparison as fair as possible, all libraries used a **minimal output format**.
 
-Additional fields that are often used in real systems were excluded from the format:
+Fields that are often present in real systems were intentionally excluded:
 
 - timestamps
 - thread id
 - log level
 - logger name
 
-The goal was to minimize the influence of formatting and additional computations and thereby make the testing conditions between different libraries as close as possible.
+The goal was to reduce the effect of formatting and auxiliary work and make the test conditions between libraries as close as possible.
 
-## Test parameters
+## Benchmark parameters
 
-By default, the benchmark is launched as follows:
+By default, the benchmark runs with the following parameters:
 
-```
+```text
 --seconds=3
 --repeat=5
 --warmup-ms=300
 --pause-ms=250
 ```
 
-For more stable results it is recommended:
+For more stable results, we recommend using:
 
-```
+```text
 --seconds=15
 ```
 
-Each test is executed several times, after which the **median value** is used as the final result.
+Each test is executed multiple times, and the **median** value is used as the final result.
 
 ## Results
 
-| Library             |         null |         file |      console | file+console |
-|--------------------|--------------|--------------|--------------|-------------|
-| logme (c)          |    527280306 |    142808726 |       615908 |       650303 |
-| logme (cpp-stream) |     30875385 |     26293202 |       637631 |       596787 |
-| logme (std::format)|    148024581 |     89936987 |       640175 |       575164 |
-| spdlog             |    245775694 |    119288244 |       677708 |       621846 |
-| quill              |      1225050 |      1620915 |       219747 |       231010 |
-| easylogging++      |     26779465 |      1654775 |       581394 |       394377 |
+| Library | null | file | console | file+console |
+|---|---:|---:|---:|---:|
+| logme (c) | 527280306 | 142808726 | 615908 | 650303 |
+| logme (cpp-stream) | 30875385 | 26293202 | 637631 | 596787 |
+| logme (std::format) | 148024581 | 89936987 | 640175 | 575164 |
+| spdlog | 245775694 | 119288244 | 677708 | 621846 |
+| quill | 1225050 | 1620915 | 219747 | 231010 |
+| easylogging++ | 26779465 | 1654775 | 581394 | 394377 |
 
-## Why null benchmark is important
+## Why the null benchmark matters
 
-At first glance, the null scenario may seem not very useful: if logging is disabled, why measure its cost?
+At first glance, the `null` scenario may seem unimportant: if logging is disabled, why measure it at all?
 
-In practice, this scenario often turns out to be critical. In many projects logging is called everywhere, but actual output depends on the logging level. For example,
+In practice, this case is often critical. In many projects, logging calls are present everywhere, while actual output depends on the current logging level. For example:
 
-```
+```cpp
 LOG_DEBUG("Request id={}", id);
 ```
 
-Even if DEBUG level is disabled, the library still has to do some work:
+Even if the `DEBUG` level is disabled, the library may still need to do some work:
 
 - check the logging level
 - prepare arguments
-- perform part of logical processing
+- perform part of the internal processing
 
 If this path is implemented inefficiently, **even disabled logs can noticeably affect application performance**.
 
-## Logging overhead
+## What “null” means in this benchmark
 
-It is important to clarify one point: the null scenario **does not mean disabling logging at macro level** (for example via #define).
-In this benchmark the situation is measured when the logging call actually happens, but the message is not written anywhere:
+One important clarification: the `null` scenario **does not mean compile-time removal of logging calls** such as via `#define`.
 
-- in logme the channel has no backends
-- in spdlog the logger has no sinks
+This benchmark measures the case where the logging call still happens, but the message is not written anywhere:
 
-Thus, the internal overhead of the logging library is measured.
+- in `logme`, the channel has no backends
+- in `spdlog`, the logger has no sinks
+
+So the benchmark measures the internal overhead of the logging library itself.
 
 ![Null benchmark](images/null.png)
 
-This test shows the cost of the logging call itself when output is disabled.
-The difference between libraries is very large.
-To better understand the scale, it is useful to look at the graph in logarithmic scale.
+This chart shows the cost of the logging call when output is disabled.
+The gap between libraries is very large.
+To make the scale easier to see, it is also useful to look at the same data on a logarithmic axis.
 
 ![Null log scale](images/null_log_scale.png)
 
-Here it becomes clear that the differences reach almost two orders of magnitude.
-This means that even disabled logging can have a noticeable cost.
+Here it becomes clear that the difference approaches two orders of magnitude.
+That means that even disabled logging can still have a measurable cost.
 
 ## File benchmark
 
 ![File benchmark](images/file.png)
 
-Intuitively, one might expect that when writing to a file the difference between libraries would disappear — since the main cost should be I/O.
+Intuitively, one might expect that once messages are written to a file, the difference between libraries would mostly disappear because I/O should dominate the cost.
 
-However, the results show that the architecture of the library still plays a significant role.
+The results show that this is not the case.
 
-Performance is affected by:
+Library architecture still matters, including:
 
 - buffering
 - locking
@@ -171,62 +173,66 @@ Performance is affected by:
 
 ![Console benchmark](images/console.png)
 
-When outputting to the console, the differences decrease.
+When writing to the console, the differences become smaller.
 
-The reason is quite obvious — **the console itself becomes the bottleneck**.
+The reason is straightforward: **the console itself becomes the bottleneck**.
 
-Therefore most libraries show similar results.
+As a result, most libraries end up with broadly similar numbers.
 
-## File + Console
+## File + Console benchmark
 
 ![File + console benchmark](images/file_console.png)
 
-The combined scenario shows approximately the same picture.
+The combined scenario shows roughly the same pattern.
 
-When the console participates in output, it begins to limit overall performance.
+Once console output is part of the path, it starts to limit overall performance.
 
 ## Impact of formatting
 
-| API          | file msgs/sec |
-|--------------|---------------|
-| C-style      | 19M           |
-| std::format  | 6.7M          |
-| iostream     | 4.1M          |
+For `logme`, we also measured how much the formatting API affects throughput.
 
-It turns out:
+| API | file msgs/sec |
+|---|---:|
+| C-style | 19M |
+| std::format | 6.7M |
+| iostream | 4.1M |
 
-- std::format is approximately 3 times slower
-- iostream is approximately 4–5 times slower
+The result is straightforward:
 
-## Why results differ
+- `std::format` is about 3× slower in this test
+- iostream is about 4–5× slower
+
+Formatting can easily dominate the total logging cost.
+
+## Why the results differ
 
 Logging performance depends on several factors.
 
 ### Library architecture
 
-Some libraries use:
+Libraries may use:
 
-- mutex
+- mutexes
 - lock-free queues
 - buffering
 
-Each approach has its own trade-offs.
+Each approach comes with its own trade-offs.
 
 ### Logging level check
 
-The best option is to check the level as early as possible.
+The best case is when the level check happens as early as possible.
 
 ### String formatting
 
-Formatting is often one of the most expensive operations.
+Formatting is often one of the most expensive parts of the logging path.
 
 ### Output buffering
 
-If each message is written immediately, it is significantly slower.
+If every message is written immediately, performance is usually much worse.
 
-## Why your results may differ
+## Why your numbers may differ
 
-The benchmark is sensitive to:
+This benchmark is sensitive to:
 
 - CPU
 - file system
@@ -234,47 +240,47 @@ The benchmark is sensitive to:
 - compiler
 - optimization settings
 
-Therefore absolute values may differ.
+So the absolute numbers may change.
 
-But the relative picture usually remains similar.
+However, the relative picture often remains similar.
 
-## How to reproduce
+## How to reproduce the benchmark
 
-```
+```bash
 git clone https://github.com/efmsoft/logbench
 ```
 
-```
+```bash
 cmake -B build
 cmake --build build --config Release
 ```
 
-```
+```bash
 logbench --seconds=15
 ```
 
 ## Summary
 
-Several observations:
+Several observations stand out:
 
-1. Logging cost may differ by orders of magnitude.
-2. Even disabled logs may have noticeable overhead.
-3. Formatting affects performance more than often expected.
-4. Library architecture remains important even when writing to file.
+1. The cost of logging can differ by orders of magnitude.
+2. Even disabled logs may still have noticeable overhead.
+3. Formatting affects performance more than is often expected.
+4. Library architecture still matters even when writing to a file.
 
-Overall, the strongest results are shown by **logme** and **spdlog**.
+Overall, the strongest results in this benchmark were shown by **logme** and **spdlog**.
 
-- spdlog shows very stable results in all scenarios. 
-- logme demonstrates minimal logging call overhead and in some tests significantly outperforms other libraries. 
+- `spdlog` delivers consistently strong results across all scenarios.
+- `logme` shows extremely low logging-call overhead and significantly outperforms other libraries in some tests.
 
-The difference is especially noticeable in the null scenario.
+The difference is especially visible in the `null` scenario.
 
-It is worth noting separately that logme supports multiple formatting APIs (C-style, std::format, iostream). This allows choosing a balance between convenience and performance depending on the task.
+It is also worth noting that `logme` supports multiple formatting APIs (`C-style`, `std::format`, and iostream), which makes it possible to choose a trade-off between convenience and performance depending on the use case.
 
 ## Conclusion
 
-Logging is rarely considered part of the critical execution path.
+Logging is rarely treated as part of the critical execution path.
 
-However, in high-load systems it can significantly affect performance.
+In high-load systems, however, it can significantly affect performance.
 
-Therefore, it sometimes makes sense to run a simple benchmark and see how much logging actually costs in your application.
+That is why it can be useful to run a simple benchmark and measure how much logging actually costs in your own application.
