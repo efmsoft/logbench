@@ -126,10 +126,20 @@ if (MSVC)
   # Generate PDB in Release (keep optimizations)
   target_compile_options(logbench PRIVATE
     $<$<CONFIG:Release>:/Zi>
+    $<$<CONFIG:Release>:/Zo>
   )
   target_link_options(logbench PRIVATE
-    $<$<CONFIG:Release>:/DEBUG>
+    $<$<CONFIG:Release>:/DEBUG:FULL>
   )
+
+  if (TARGET logme)
+    target_compile_options(logme PRIVATE
+      $<$<CONFIG:Release>:/Zi>
+      $<$<CONFIG:Release>:/Zo>
+    )
+  endif()
+
+  target_compile_options(logbench PRIVATE /Zc:preprocessor)
 else()
   target_compile_options(logbench PRIVATE -Wall -Wextra -Wpedantic)
 endif()

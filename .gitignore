@@ -1,0 +1,7 @@
+.vs/
+build/
+easylogging_bench.log
+logme_bench.log
+myeasylog.log
+quill_bench.log
+spdlog_bench.log
