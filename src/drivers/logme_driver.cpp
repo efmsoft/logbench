@@ -68,11 +68,23 @@ public:
       File->SetAppend(false);
 
       std::error_code ec;
-      fs::remove(filePath, ec);
+      //fs::remove(filePath, ec);
+      if (fs::exists(filePath))
+      {
+        if (!fs::remove(filePath, ec))
+        {
+          if (ec)
+          {
+            std::cerr << "Failed to remove file: " << ec.message() << std::endl;
+          }
+        }
+      }
 
       if (File->CreateLog(filePath.c_str()) == false)
+      {
+        printf("Logme failed to create log file %s\n", filePath.c_str());
         return false;
-
+      }
       Ch->AddBackend(File);
     }
 
@@ -114,6 +126,7 @@ public:
 
     if (Ch)
     {
+      Ch->Flush();
       Ch->RemoveBackends();
     }
 
