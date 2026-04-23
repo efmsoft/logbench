@@ -1,0 +1,40 @@
+{
+  "version": 4,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "release-std",
+      "displayName": "Release / std build",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/std-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "USE_FMT": "OFF"
+      }
+    },
+    {
+      "name": "release-fmt",
+      "displayName": "Release / fmt build",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/fmt-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "USE_FMT": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-release-std",
+      "configurePreset": "release-std"
+    },
+    {
+      "name": "build-release-fmt",
+      "configurePreset": "release-fmt"
+    }
+  ]
+}

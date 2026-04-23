@@ -29,25 +29,26 @@ The benchmark currently covers:
 - [spdlog](https://github.com/gabime/spdlog)
 - [quill](https://github.com/odygrd/quill)
 - [easylogging++](https://github.com/amrayn/easyloggingpp)
+- [Boost.Log](https://www.boost.org/doc/libs/release/libs/log/)
+- [g3log](https://github.com/KjellKod/g3log)
+- [plog](https://github.com/SergiusTheBest/plog)
 
-For **logme**, multiple formatting APIs are also benchmarked separately:
+`logbench` treats message construction as a global benchmark dimension with three formats:
 
-- C-style (`printf`-like)
-- `std::format`
-- iostream
+- `c`
+- `cpp`
+- `fmt`
 
-This makes it possible to look not only at library architecture, but also at the cost of formatting style.
+Each library participates only in the formats it actually supports. `std::format` versus `fmt` is not a runtime test parameter; it is a build-time project configuration, which naturally produces different result tables for different builds.
 
 ## What logbench Measures
 
-The benchmark reports the **maximum number of log messages per second** for each scenario.
+The benchmark supports two measurement modes:
 
-The main things it is intended to highlight are:
+- `throughput` — how many logging calls fit into a fixed time window
+- `latency` — total producer-side latency for a fixed number of logging calls
 
-- logging call overhead when output is disabled
-- throughput when writing to real sinks
-- the impact of formatting API choice
-- scalability across different workloads
+For asynchronous libraries, the latency mode also reports drain time separately, so enqueue cost and backend completion cost do not get mixed together.
 
 ## Benchmark Scenarios
 
@@ -80,7 +81,9 @@ The intention is to avoid library-specific tuning that would make the comparison
 If `logbench` is started without parameters, the following defaults are used:
 
 ```text
+--mode=throughput
 --seconds=3
+--cycles=200000
 --repeat=5
 --warmup-ms=300
 --pause-ms=250
@@ -89,7 +92,9 @@ If `logbench` is started without parameters, the following defaults are used:
 
 Parameter summary:
 
-- `--seconds` — duration of one benchmark run
+- `--mode` — `throughput` or `latency`
+- `--seconds` — duration of one throughput run
+- `--cycles` — number of logging calls in latency mode
 - `--repeat` — number of repetitions for each test
 - `--warmup-ms` — warm-up duration before measurement
 - `--pause-ms` — pause between repetitions
@@ -104,21 +109,45 @@ For more stable numbers, a longer run is recommended, for example:
 
 ## Build
 
-The project uses CMake.
+The project uses CMake and provides two explicit release configurations:
+
+- `release-std` - `fmt` test cases are built through the standard library formatting path
+- `release-fmt` - external `{fmt}` is enabled and libraries that support it are built against it
+
+The easiest way to configure and build is through presets:
 
 ```bash
-git clone https://github.com/efmsoft/logbench.git
-cd logbench
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
+cmake --preset release-std
+cmake --build --preset build-release-std
+
+cmake --preset release-fmt
+cmake --build --preset build-release-fmt
 ```
+
+Equivalent manual configuration:
+
+```bash
+cmake -B build/std-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=OFF
+cmake --build build/std-release
+
+cmake -B build/fmt-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=ON
+cmake --build build/fmt-release
+```
+
+Notes:
+
+- `spdlog` switches to external `{fmt}` when `USE_FMT=ON` through `SPDLOG_FMT_EXTERNAL`.
+- `quill` switches to external `{fmt}` when `USE_FMT=ON` through `QUILL_FMT_EXTERNAL`.
+- Boost is fetched from the Boost Git repository rather than the official release archive because Boost's CMake support is available from the Git layout, while official release archives do not ship the top-level CMake entrypoint needed for `add_subdirectory` / `FetchContent`.
 
 ## Run
 
 Example:
 
 ```bash
-./build/logbench --seconds=15
+./build/std-release/logbench --seconds=15
+./build/std-release/logbench --mode=latency --cycles=500000
+./build/fmt-release/logbench --filter=boost.log,file,cpp
 ```
 
 On Windows, depending on the generator, you may run the produced executable from the build directory instead.
@@ -135,3 +164,20 @@ In practice, it can become part of the critical execution path:
 - in applications with large amounts of disabled debug logging
 
 `logbench` exists to make that cost visible and easy to reproduce.
+
+
+## Source layout
+
+The benchmark is now split into small modules instead of one oversized translation unit.
+
+- `src/main.cpp` - command-line entry point and top-level orchestration
+- `src/bench_types.h` - shared enums and common result/config structs
+- `src/bench_driver.h` - common driver interface
+- `src/cli.*` - command-line parsing
+- `src/filter.*` - filter token parsing and matching
+- `src/bench_runner.*` - common per-case execution logic
+- `src/results_printer.*` - result tables
+- `src/modes/measure_runner.*` - mode-specific measurement routines
+- `src/drivers/*.h` and `src/drivers/*.cpp` - one module per logging library
+
+This keeps `main` focused on orchestration, keeps each library implementation isolated, and makes it much easier to add new benchmark modes or new drivers.
