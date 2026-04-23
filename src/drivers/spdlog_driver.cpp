@@ -36,6 +36,8 @@ public:
 
   bool Setup(BenchMode mode, const std::string& filePath, MeasureMode measure) override
   {
+    (void) measure;
+    Value = 0;
     std::vector<spdlog::sink_ptr> sinks;
 
     if (mode == BenchMode::Null)
@@ -52,12 +54,13 @@ public:
       if (mode == BenchMode::File || mode == BenchMode::FileConsole)
       {
         std::error_code ec;
+        fs::create_directories(fs::path(filePath).parent_path(), ec);
         fs::remove(filePath, ec);
         sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(filePath, false));
       }
     }
 
-    Async = (measure == MeasureMode::Latency);
+    Async = (mode == BenchMode::File);
 
     if (Async)
     {
@@ -82,10 +85,10 @@ public:
 
   std::function<void(void)> MakeLogOnce(FormatType) override
   {
-    return [this, value = 0]() mutable
+    return [this]()
     {
-      ++value;
-      Logger->info("value is {}", value);
+      ++Value;
+      Logger->info("value is {}", Value);
     };
   }
 
@@ -109,6 +112,7 @@ private:
   std::shared_ptr<spdlog::logger> Logger;
   std::shared_ptr<spdlog::details::thread_pool> ThreadPool;
   bool Async = false;
+  int Value = 0;
 };
 
 std::unique_ptr<IBenchDriver> CreateSpdlogDriver()
