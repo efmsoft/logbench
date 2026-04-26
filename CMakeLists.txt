@@ -49,8 +49,17 @@ set(G3_SHARED_LIB OFF CACHE BOOL "" FORCE)
 set(G3_SHARED_RUNTIME OFF CACHE BOOL "" FORCE)
 
 if (USE_FMT)
+  FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG 12.1.0
+    GIT_SHALLOW TRUE)
+  FetchContent_MakeAvailable(fmt)
+
   set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
   set(QUILL_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
+  set(LOGME_FMT_FORMAT AUTO CACHE STRING "" FORCE)
+  set(LOGME_STD_FORMAT OFF CACHE STRING "" FORCE)
 endif()
 
 if (LOGME_SOURCE_DIR)
@@ -62,18 +71,9 @@ else()
   FetchContent_Declare(
     logme
     GIT_REPOSITORY https://github.com/efmsoft/logme.git
-    GIT_TAG v2.4.13
+    GIT_TAG v2.4.16
     GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(logme)
-endif()
-
-if (USE_FMT)
-  FetchContent_Declare(
-    fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 12.1.0
-    GIT_SHALLOW TRUE)
-  FetchContent_MakeAvailable(fmt)
 endif()
 
 FetchContent_Declare(
@@ -134,7 +134,7 @@ if (BENCH_WITH_BOOST_LOG)
   FetchContent_Declare(
     boost
     GIT_REPOSITORY https://github.com/boostorg/boost.git
-    GIT_TAG boost-1.90.0
+    GIT_TAG boost-1.91.0
     GIT_SHALLOW FALSE
     GIT_SUBMODULES_RECURSE TRUE)
   FetchContent_MakeAvailable(boost)

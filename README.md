@@ -127,15 +127,16 @@ cmake --build --preset build-release-fmt
 Equivalent manual configuration:
 
 ```bash
-cmake -B build/std-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=OFF
+cmake -B build/std-release -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=OFF
 cmake --build build/std-release
 
-cmake -B build/fmt-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=ON
+cmake -B build/fmt-release -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=ON
 cmake --build build/fmt-release
 ```
 
 Notes:
 
+- `logme` switches to external `{fmt}` when `USE_FMT=ON` through `LOGME_FMT_FORMAT=ON`.
 - `spdlog` switches to external `{fmt}` when `USE_FMT=ON` through `SPDLOG_FMT_EXTERNAL`.
 - `quill` switches to external `{fmt}` when `USE_FMT=ON` through `QUILL_FMT_EXTERNAL`.
 - Boost is fetched from the Boost Git repository rather than the official release archive because Boost's CMake support is available from the Git layout, while official release archives do not ship the top-level CMake entrypoint needed for `add_subdirectory` / `FetchContent`.
