@@ -9,6 +9,38 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(FetchContent)
 include(CTest)
 
+
+function(PrintTargetProperty target property)
+  if (TARGET ${target})
+    get_target_property(value ${target} ${property})
+    if (NOT value)
+      set(value "<empty>")
+    endif()
+    message(STATUS "${target} ${property}: ${value}")
+  else()
+    message(STATUS "${target} ${property}: <target not found>")
+  endif()
+endfunction()
+
+function(RequireFmtTarget reason)
+  if (USE_FMT AND NOT TARGET fmt::fmt)
+    message(FATAL_ERROR "USE_FMT=ON requires fmt::fmt before ${reason}")
+  endif()
+endfunction()
+
+function(RequireCacheBool name expected reason)
+  if (USE_FMT AND (NOT DEFINED ${name} OR NOT "${${name}}" STREQUAL "${expected}"))
+    message(FATAL_ERROR "USE_FMT=ON requires ${name}=${expected} for ${reason}, got '${${name}}'")
+  endif()
+endfunction()
+
+function(PrintFmtTargetControl target)
+  PrintTargetProperty(${target} INTERFACE_LINK_LIBRARIES)
+  PrintTargetProperty(${target} LINK_LIBRARIES)
+  PrintTargetProperty(${target} INTERFACE_COMPILE_DEFINITIONS)
+  PrintTargetProperty(${target} COMPILE_DEFINITIONS)
+endfunction()
+
 option(USE_FMT "Build fmt-style paths with external fmt and switch libraries that support it" OFF)
 option(BENCH_WITH_EASYLOGGING "Include easylogging++" ON)
 option(BENCH_WITH_QUILL "Include quill" ON)
@@ -55,6 +87,7 @@ if (USE_FMT)
     GIT_TAG 12.1.0
     GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(fmt)
+  RequireFmtTarget("configuring fmt-aware dependencies")
 
   set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
   set(QUILL_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
@@ -76,12 +109,27 @@ else()
   FetchContent_MakeAvailable(logme)
 endif()
 
+if (USE_FMT)
+  RequireCacheBool(LOGME_USE_FMT_FORMAT 1 "logme")
+  RequireCacheBool(LOGME_DISABLE_STD_FORMAT 0 "logme")
+  message(STATUS "logme fmt control: LOGME_USE_FMT_FORMAT=${LOGME_USE_FMT_FORMAT}; LOGME_DISABLE_STD_FORMAT=${LOGME_DISABLE_STD_FORMAT}")
+  PrintFmtTargetControl(logme)
+endif()
+
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
   GIT_TAG v1.17.0
   GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(spdlog)
+
+if (USE_FMT)
+  RequireCacheBool(SPDLOG_FMT_EXTERNAL ON "spdlog")
+  RequireCacheBool(SPDLOG_USE_STD_FORMAT OFF "spdlog")
+  message(STATUS "spdlog fmt control: SPDLOG_FMT_EXTERNAL=${SPDLOG_FMT_EXTERNAL}; SPDLOG_USE_STD_FORMAT=${SPDLOG_USE_STD_FORMAT}")
+  PrintFmtTargetControl(spdlog::spdlog)
+  PrintFmtTargetControl(spdlog)
+endif()
 
 if (BENCH_WITH_QUILL)
   FetchContent_Declare(
@@ -90,6 +138,13 @@ if (BENCH_WITH_QUILL)
     GIT_TAG v10.0.1
     GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(quill)
+
+  if (USE_FMT)
+    RequireCacheBool(QUILL_FMT_EXTERNAL ON "quill")
+    message(STATUS "quill fmt control: QUILL_FMT_EXTERNAL=${QUILL_FMT_EXTERNAL}")
+    PrintFmtTargetControl(quill::quill)
+    PrintFmtTargetControl(quill)
+  endif()
 endif()
 
 if (BENCH_WITH_EASYLOGGING)
