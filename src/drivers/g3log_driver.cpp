@@ -59,13 +59,16 @@ struct G3BenchSink
     }
   }
 
-  void Flush()
+  void FlushConsole()
   {
     if (ToConsole)
     {
       std::cout.flush();
     }
+  }
 
+  void Close()
+  {
     if (File.is_open())
     {
       File.flush();
@@ -89,6 +92,7 @@ public:
 
   bool Setup(BenchMode mode, const std::string& filePath, MeasureMode) override
   {
+    Mode = mode;
     Worker = g3::LogWorker::createLogWorker();
     SinkHandle = Worker->addSink(std::make_unique<G3BenchSink>(), &G3BenchSink::Save);
     SinkHandle->call(&G3BenchSink::Configure, mode, filePath).get();
@@ -104,6 +108,7 @@ public:
       {
         ++value;
         LOGF(INFO, "value is %i", value);
+        FlushConsoleIfNeeded();
       };
     }
 
@@ -111,6 +116,7 @@ public:
     {
       ++value;
       LOG(INFO) << "value is " << value;
+      FlushConsoleIfNeeded();
     };
   }
 
@@ -120,7 +126,7 @@ public:
 
     if (SinkHandle)
     {
-      SinkHandle->call(&G3BenchSink::Flush).get();
+      SinkHandle->call(&G3BenchSink::Close).get();
     }
 
     SinkHandle.reset();
@@ -131,6 +137,15 @@ public:
   }
 
 private:
+  void FlushConsoleIfNeeded()
+  {
+    if (Mode == BenchMode::Console || Mode == BenchMode::FileConsole)
+    {
+      SinkHandle->call(&G3BenchSink::FlushConsole).get();
+    }
+  }
+
+  BenchMode Mode = BenchMode::Null;
   std::unique_ptr<g3::LogWorker> Worker;
   std::unique_ptr<g3::SinkHandle<G3BenchSink>> SinkHandle;
 };
