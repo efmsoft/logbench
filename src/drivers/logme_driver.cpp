@@ -38,7 +38,7 @@ public:
 
   DriverCaps GetCaps() const override
   {
-    return DriverCaps{true, true, true};
+    return DriverCaps{true, true, BENCH_LOGME_HAS_STD_FORMAT != 0};
   }
 
   bool Setup(BenchMode mode, const std::string& filePath, MeasureMode) override
@@ -111,11 +111,17 @@ public:
       };
     }
 
+#if BENCH_LOGME_HAS_STD_FORMAT
     return [this, value = 0]() mutable
     {
       ++value;
       fLogmeI(Ch, "value is {}", value);
     };
+#else
+    return []()
+    {
+    };
+#endif
   }
 
   uint64_t TeardownAndDrainNs() override

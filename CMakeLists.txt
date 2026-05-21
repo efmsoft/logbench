@@ -109,12 +109,17 @@ else()
   FetchContent_MakeAvailable(logme)
 endif()
 
+set(BENCH_LOGME_HAS_STD_FORMAT OFF)
+if (DEFINED LOGME_DISABLE_STD_FORMAT AND NOT LOGME_DISABLE_STD_FORMAT)
+  set(BENCH_LOGME_HAS_STD_FORMAT ON)
+endif()
+
 if (USE_FMT)
   RequireCacheBool(LOGME_USE_FMT_FORMAT 1 "logme")
-  RequireCacheBool(LOGME_DISABLE_STD_FORMAT 0 "logme")
   message(STATUS "logme fmt control: LOGME_USE_FMT_FORMAT=${LOGME_USE_FMT_FORMAT}; LOGME_DISABLE_STD_FORMAT=${LOGME_DISABLE_STD_FORMAT}")
   PrintFmtTargetControl(logme)
 endif()
+message(STATUS "logbench logme std::format benchmark: ${BENCH_LOGME_HAS_STD_FORMAT}")
 
 FetchContent_Declare(
   spdlog
@@ -213,6 +218,9 @@ add_executable(logbench
   src/drivers/plog_driver.cpp)
 
 target_compile_definitions(logbench PRIVATE LOGME_INRELEASE)
+target_compile_definitions(logbench PRIVATE
+  $<$<BOOL:${BENCH_LOGME_HAS_STD_FORMAT}>:BENCH_LOGME_HAS_STD_FORMAT=1>
+  $<$<NOT:$<BOOL:${BENCH_LOGME_HAS_STD_FORMAT}>>:BENCH_LOGME_HAS_STD_FORMAT=0>)
 target_compile_definitions(logbench PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO)
 if (MSVC)
   target_compile_definitions(logbench PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
