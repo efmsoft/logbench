@@ -9,6 +9,8 @@ namespace bench
 {
 using Clock = std::chrono::steady_clock;
 
+static const uint64_t TIME_CHECK_BATCH = 1024;
+
 void PauseBetweenRuns(int pauseMs)
 {
   if (pauseMs > 0)
@@ -22,7 +24,10 @@ RunStats RunThroughput(int seconds, int warmupMs, const std::function<void(void)
   uint64_t warmStart = NowMs();
   while (ElapsedMs(warmStart) < static_cast<uint64_t>(warmupMs))
   {
-    logOnce();
+    for (uint64_t i = 0; i < TIME_CHECK_BATCH; ++i)
+    {
+      logOnce();
+    }
   }
 
   RunStats stats;
@@ -30,8 +35,11 @@ RunStats RunThroughput(int seconds, int warmupMs, const std::function<void(void)
 
   while (ElapsedMs(start) < static_cast<uint64_t>(seconds) * 1000ULL)
   {
-    logOnce();
-    ++stats.Cycles;
+    for (uint64_t i = 0; i < TIME_CHECK_BATCH; ++i)
+    {
+      logOnce();
+      ++stats.Cycles;
+    }
   }
 
   return stats;

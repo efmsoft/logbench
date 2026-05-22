@@ -16,7 +16,7 @@ inline uint64_t NowMs()
   return static_cast<uint64_t>(GetTickCount64());
 #else
   struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
+  clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
   return static_cast<uint64_t>(ts.tv_sec) * 1000ULL +
          static_cast<uint64_t>(ts.tv_nsec) / 1000000ULL;
 #endif
