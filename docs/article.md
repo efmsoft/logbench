@@ -19,6 +19,8 @@ At that point, the logging library becomes part of the **critical execution path
 
 To get a more concrete answer, we wrote a small benchmark.
 
+You can also read the published version of this article on [Developer's tips](https://tips.efmsoft.com/cpp-logging-performance-benchmark/).
+
 The benchmark source code is available here:
 
 https://github.com/efmsoft/logbench
