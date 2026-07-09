@@ -17,6 +17,7 @@
 #include <g3log/logworker.hpp>
 
 #include "../bench_types.h"
+#include "../bench_util.h"
 
 namespace bench
 {
@@ -90,9 +91,10 @@ public:
     return DriverCaps{true, true, false};
   }
 
-  bool Setup(BenchMode mode, const std::string& filePath, MeasureMode) override
+  bool Setup(BenchMode mode, const std::string& filePath, MeasureMode measure) override
   {
     Mode = mode;
+    Measure = measure;
     Worker = g3::LogWorker::createLogWorker();
     SinkHandle = Worker->addSink(std::make_unique<G3BenchSink>(), &G3BenchSink::Save);
     SinkHandle->call(&G3BenchSink::Configure, mode, filePath).get();
@@ -100,14 +102,34 @@ public:
     return true;
   }
 
-  std::function<void(void)> MakeLogOnce(FormatType format) override
+  std::function<void(void)> MakeLogOnce(FormatType format, PayloadType payload) override
   {
     if (format == FormatType::C)
     {
+      if (payload == PayloadType::DynamicString)
+      {
+        return [this, value = 0]() mutable
+        {
+          std::string message = MakeDynamicString(++value);
+          LOGF(INFO, "%s", message.c_str());
+          FlushConsoleIfNeeded();
+        };
+      }
+
       return [this, value = 0]() mutable
       {
         ++value;
         LOGF(INFO, "value is %i", value);
+        FlushConsoleIfNeeded();
+      };
+    }
+
+    if (payload == PayloadType::DynamicString)
+    {
+      return [this, value = 0]() mutable
+      {
+        std::string message = MakeDynamicString(++value);
+        LOG(INFO) << message;
         FlushConsoleIfNeeded();
       };
     }
@@ -139,13 +161,15 @@ public:
 private:
   void FlushConsoleIfNeeded()
   {
-    if (Mode == BenchMode::Console || Mode == BenchMode::FileConsole)
+    if (Measure == MeasureMode::Throughput &&
+        (Mode == BenchMode::Console || Mode == BenchMode::FileConsole))
     {
       SinkHandle->call(&G3BenchSink::FlushConsole).get();
     }
   }
 
   BenchMode Mode = BenchMode::Null;
+  MeasureMode Measure = MeasureMode::Throughput;
   std::unique_ptr<g3::LogWorker> Worker;
   std::unique_ptr<g3::SinkHandle<G3BenchSink>> SinkHandle;
 };

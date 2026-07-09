@@ -19,6 +19,8 @@
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/async_frontend.hpp>
+#include <boost/log/sinks/block_on_overflow.hpp>
+#include <boost/log/sinks/bounded_fifo_queue.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/text_file_backend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
@@ -27,6 +29,7 @@
 #include <boost/log/trivial.hpp>
 
 #include "../bench_types.h"
+#include "../bench_util.h"
 
 namespace bench
 {
@@ -62,9 +65,10 @@ public:
   using OstreamBackend = blsink::text_ostream_backend;
   using FileBackend = blsink::text_file_backend;
   using SyncOstreamSink = blsink::synchronous_sink<OstreamBackend>;
-  using AsyncOstreamSink = blsink::asynchronous_sink<OstreamBackend>;
   using SyncFileSink = blsink::synchronous_sink<FileBackend>;
-  using AsyncFileSink = blsink::asynchronous_sink<FileBackend>;
+  using BoundedQueue = blsink::bounded_fifo_queue<ASYNC_QUEUE_RECORD_CAPACITY, blsink::block_on_overflow>;
+  using AsyncOstreamSink = blsink::asynchronous_sink<OstreamBackend, BoundedQueue>;
+  using AsyncFileSink = blsink::asynchronous_sink<FileBackend, BoundedQueue>;
 
   const char* GetLibName() const override
   {
@@ -105,8 +109,17 @@ public:
     return !Sinks.empty();
   }
 
-  std::function<void(void)> MakeLogOnce(FormatType) override
+  std::function<void(void)> MakeLogOnce(FormatType, PayloadType payload) override
   {
+    if (payload == PayloadType::DynamicString)
+    {
+      return [this, value = 0]() mutable
+      {
+        std::string message = MakeDynamicString(++value);
+        BOOST_LOG_SEV(Logger, bl::trivial::info) << message;
+      };
+    }
+
     return [this, value = 0]() mutable
     {
       ++value;
@@ -154,24 +167,11 @@ private:
 
   void AddFileSink(const std::string& filePath)
   {
-    if (Measure == MeasureMode::Latency)
-    {
-      auto backend = boost::make_shared<FileBackend>(
-        bl::keywords::file_name = filePath,
-        bl::keywords::open_mode = std::ios_base::out | std::ios_base::trunc,
-        bl::keywords::auto_flush = false);
-      auto sink = boost::make_shared<AsyncFileSink>(backend);
-      sink->set_formatter(blexpr::stream << blexpr::smessage);
-      bl::core::get()->add_sink(sink);
-      Sinks.push_back(sink);
-      return;
-    }
-
     auto backend = boost::make_shared<FileBackend>(
       bl::keywords::file_name = filePath,
       bl::keywords::open_mode = std::ios_base::out | std::ios_base::trunc,
       bl::keywords::auto_flush = false);
-    auto sink = boost::make_shared<SyncFileSink>(backend);
+    auto sink = boost::make_shared<AsyncFileSink>(backend);
     sink->set_formatter(blexpr::stream << blexpr::smessage);
     bl::core::get()->add_sink(sink);
     Sinks.push_back(sink);

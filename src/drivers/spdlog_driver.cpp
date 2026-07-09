@@ -9,6 +9,8 @@
 #include <memory>
 #include <vector>
 
+#include "../bench_util.h"
+
 #include <spdlog/async.h>
 #include <spdlog/async_logger.h>
 #include <spdlog/logger.h>
@@ -36,59 +38,86 @@ public:
 
   bool Setup(BenchMode mode, const std::string& filePath, MeasureMode measure) override
   {
-    (void) measure;
     Value = 0;
-    std::vector<spdlog::sink_ptr> sinks;
+    Loggers.clear();
+    ThreadPool.reset();
+
+    if (measure == MeasureMode::Latency)
+    {
+      std::vector<spdlog::sink_ptr> sinks;
+      AddSinks(sinks, mode, filePath);
+      ThreadPool = std::make_shared<spdlog::details::thread_pool>(ASYNC_QUEUE_RECORD_CAPACITY, 1u);
+      Loggers.push_back(
+        std::make_shared<spdlog::async_logger>(
+          "bench_spdlog_latency",
+          sinks.begin(),
+          sinks.end(),
+          ThreadPool,
+          spdlog::async_overflow_policy::block));
+      ConfigureLogger(Loggers.back());
+      return true;
+    }
 
     if (mode == BenchMode::Null)
     {
+      std::vector<spdlog::sink_ptr> sinks;
       sinks.push_back(std::make_shared<spdlog::sinks::null_sink_mt>());
+      Loggers.push_back(std::make_shared<spdlog::logger>("bench_spdlog_null", sinks.begin(), sinks.end()));
+      ConfigureLogger(Loggers.back());
+      return true;
     }
-    else
+
+    if (mode == BenchMode::Console || mode == BenchMode::FileConsole)
     {
-      if (mode == BenchMode::Console || mode == BenchMode::FileConsole)
-      {
-        sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
-      }
-
-      if (mode == BenchMode::File || mode == BenchMode::FileConsole)
-      {
-        std::error_code ec;
-        fs::create_directories(fs::path(filePath).parent_path(), ec);
-        fs::remove(filePath, ec);
-        sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(filePath, false));
-      }
+      std::vector<spdlog::sink_ptr> sinks;
+      sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+      Loggers.push_back(std::make_shared<spdlog::logger>("bench_spdlog_console", sinks.begin(), sinks.end()));
+      ConfigureLogger(Loggers.back());
     }
 
-    Async = (mode == BenchMode::File);
-
-    if (Async)
+    if (mode == BenchMode::File || mode == BenchMode::FileConsole)
     {
-      ThreadPool = std::make_shared<spdlog::details::thread_pool>(1u << 16u, 1u);
-      Logger = std::make_shared<spdlog::async_logger>(
-        "bench_spdlog",
-        sinks.begin(),
-        sinks.end(),
-        ThreadPool,
-        spdlog::async_overflow_policy::block);
-    }
-    else
-    {
-      Logger = std::make_shared<spdlog::logger>("bench_spdlog", sinks.begin(), sinks.end());
+      std::error_code ec;
+      fs::create_directories(fs::path(filePath).parent_path(), ec);
+      fs::remove(filePath, ec);
+
+      std::vector<spdlog::sink_ptr> sinks;
+      sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(filePath, false));
+      ThreadPool = std::make_shared<spdlog::details::thread_pool>(ASYNC_QUEUE_RECORD_CAPACITY, 1u);
+      Loggers.push_back(
+        std::make_shared<spdlog::async_logger>(
+          "bench_spdlog_file",
+          sinks.begin(),
+          sinks.end(),
+          ThreadPool,
+          spdlog::async_overflow_policy::block));
+      ConfigureLogger(Loggers.back());
     }
 
-    Logger->set_level(spdlog::level::info);
-    Logger->flush_on(spdlog::level::off);
-    Logger->set_pattern("%v");
-    return true;
+    return !Loggers.empty();
   }
 
-  std::function<void(void)> MakeLogOnce(FormatType) override
+  std::function<void(void)> MakeLogOnce(FormatType, PayloadType payload) override
   {
+    if (payload == PayloadType::DynamicString)
+    {
+      return [this]()
+      {
+        std::string message = MakeDynamicString(++Value);
+        for (auto& logger : Loggers)
+        {
+          logger->info("{}", message);
+        }
+      };
+    }
+
     return [this]()
     {
       ++Value;
-      Logger->info("value is {}", Value);
+      for (auto& logger : Loggers)
+      {
+        logger->info("value is {}", Value);
+      }
     };
   }
 
@@ -96,12 +125,15 @@ public:
   {
     auto start = Clock::now();
 
-    if (Logger)
+    for (auto& logger : Loggers)
     {
-      Logger->flush();
+      if (logger)
+      {
+        logger->flush();
+      }
     }
 
-    Logger.reset();
+    Loggers.clear();
     ThreadPool.reset();
 
     auto end = Clock::now();
@@ -109,9 +141,41 @@ public:
   }
 
 private:
-  std::shared_ptr<spdlog::logger> Logger;
+  void AddSinks(
+    std::vector<spdlog::sink_ptr>& sinks
+    , BenchMode mode
+    , const std::string& filePath)
+  {
+    if (mode == BenchMode::Null)
+    {
+      sinks.push_back(std::make_shared<spdlog::sinks::null_sink_mt>());
+      return;
+    }
+
+    if (mode == BenchMode::Console || mode == BenchMode::FileConsole)
+    {
+      sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+    }
+
+    if (mode == BenchMode::File || mode == BenchMode::FileConsole)
+    {
+      std::error_code ec;
+      fs::create_directories(fs::path(filePath).parent_path(), ec);
+      fs::remove(filePath, ec);
+      sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(filePath, false));
+    }
+  }
+
+  void ConfigureLogger(const std::shared_ptr<spdlog::logger>& logger)
+  {
+    logger->set_level(spdlog::level::info);
+    logger->flush_on(spdlog::level::off);
+    logger->set_pattern("%v");
+  }
+
+private:
+  std::vector<std::shared_ptr<spdlog::logger>> Loggers;
   std::shared_ptr<spdlog::details::thread_pool> ThreadPool;
-  bool Async = false;
   int Value = 0;
 };
 

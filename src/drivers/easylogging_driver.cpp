@@ -2,6 +2,9 @@
 
 #if BENCH_WITH_EASYLOGGING
 #include <chrono>
+#include <string>
+
+#include "../bench_util.h"
 
 #include "easylogging++.h"
 INITIALIZE_EASYLOGGINGPP
@@ -48,8 +51,17 @@ public:
     return true;
   }
 
-  std::function<void(void)> MakeLogOnce(FormatType) override
+  std::function<void(void)> MakeLogOnce(FormatType, PayloadType payload) override
   {
+    if (payload == PayloadType::DynamicString)
+    {
+      return [this, value = 0]() mutable
+      {
+        std::string message = MakeDynamicString(++value);
+        LOG(INFO) << message;
+      };
+    }
+
     return [this, value = 0]() mutable
     {
       ++value;

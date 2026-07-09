@@ -26,6 +26,12 @@ enum class MeasureMode
   Latency
 };
 
+enum class PayloadType
+{
+  Integer,
+  DynamicString
+};
+
 struct BenchCase
 {
   std::string Lib;
@@ -52,13 +58,14 @@ struct BenchResult
 struct Cli
 {
   int Seconds = 3;
-  int Cycles = 200000;
-  int Repeat = 5;
-  int WarmupMs = 300;
-  int PauseMs = 250;
+  int Cycles = 100000;
+  int Repeat = 3;
+  int WarmupMs = 100;
+  int PauseMs = 150;
   std::string OutDir = ".";
   std::string Filter;
   MeasureMode Measure = MeasureMode::Throughput;
+  PayloadType Payload = PayloadType::Integer;
 };
 
 struct DriverCaps

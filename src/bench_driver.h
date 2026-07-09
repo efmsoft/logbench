@@ -16,7 +16,7 @@ public:
   virtual const char* GetLibName() const = 0;
   virtual DriverCaps GetCaps() const = 0;
   virtual bool Setup(BenchMode mode, const std::string& filePath, MeasureMode measure) = 0;
-  virtual std::function<void(void)> MakeLogOnce(FormatType format) = 0;
+  virtual std::function<void(void)> MakeLogOnce(FormatType format, PayloadType payload) = 0;
   virtual uint64_t TeardownAndDrainNs() = 0;
 };
 } // namespace bench

@@ -5,6 +5,7 @@
 #include "bench_util.h"
 
 #include <algorithm>
+#include <string>
 
 namespace bench
 {
@@ -39,6 +40,25 @@ const char* MeasureName(MeasureMode mode)
     case MeasureMode::Latency: return "latency";
   }
   return "unknown";
+}
+
+const char* PayloadName(PayloadType payload)
+{
+  switch (payload)
+  {
+    case PayloadType::Integer: return "integer";
+    case PayloadType::DynamicString: return "dynamic-string";
+  }
+  return "unknown";
+}
+
+std::string MakeDynamicString(uint64_t value)
+{
+  std::string text = "dynamic value ";
+  text += std::to_string(value);
+  text += " request ";
+  text += std::to_string(value * 2654435761ULL);
+  return text;
 }
 
 uint64_t Median(std::vector<uint64_t> v)

@@ -10,6 +10,8 @@
 #include <memory>
 #include <string>
 
+#include "../bench_util.h"
+
 #include <plog/Init.h>
 #include <plog/Log.h>
 #include <plog/Appenders/ConsoleAppender.h>
@@ -90,29 +92,21 @@ public:
         return false;
     }
 
-    std::function<void(void)> MakeLogOnce(FormatType format) override
+    std::function<void(void)> MakeLogOnce(FormatType format, PayloadType payload) override
     {
         switch (Mode)
         {
         case BenchMode::Null:
-            return (format == FormatType::C) 
-                ? std::function<void()>{[this]() { PLOG_(0, plog::info).printf("value is %d", ++Value); }}
-                : std::function<void()>{[this]() { PLOG_(0, plog::info) << "value is " << ++Value; }};
+            return MakeModeLogOnce<0>(format, payload);
 
         case BenchMode::Console:
-            return (format == FormatType::C)
-                ? std::function<void()>{[this]() { PLOG_(1, plog::info).printf("value is %d", ++Value); }}
-                : std::function<void()>{[this]() { PLOG_(1, plog::info) << "value is " << ++Value; }};
+            return MakeModeLogOnce<1>(format, payload);
 
         case BenchMode::File:
-            return (format == FormatType::C)
-                ? std::function<void()>{[this]() { PLOG_(2, plog::info).printf("value is %d", ++Value); }}
-                : std::function<void()>{[this]() { PLOG_(2, plog::info) << "value is " << ++Value; }};
+            return MakeModeLogOnce<2>(format, payload);
 
         case BenchMode::FileConsole:
-            return (format == FormatType::C)
-                ? std::function<void()>{[this]() { PLOG_(3, plog::info).printf("value is %d", ++Value); }}
-                : std::function<void()>{[this]() { PLOG_(3, plog::info) << "value is " << ++Value; }};
+            return MakeModeLogOnce<3>(format, payload);
         }
         return {};
     }
@@ -120,6 +114,42 @@ public:
     uint64_t TeardownAndDrainNs() override
     {
         return 0;
+    }
+
+private:
+    template<int Instance>
+    std::function<void(void)> MakeModeLogOnce(FormatType format, PayloadType payload)
+    {
+        if (format == FormatType::C)
+        {
+            if (payload == PayloadType::DynamicString)
+            {
+                return [this]()
+                {
+                    std::string message = MakeDynamicString(++Value);
+                    PLOG_(Instance, plog::info).printf("%s", message.c_str());
+                };
+            }
+
+            return [this]()
+            {
+                PLOG_(Instance, plog::info).printf("value is %d", ++Value);
+            };
+        }
+
+        if (payload == PayloadType::DynamicString)
+        {
+            return [this]()
+            {
+                std::string message = MakeDynamicString(++Value);
+                PLOG_(Instance, plog::info) << message;
+            };
+        }
+
+        return [this]()
+        {
+            PLOG_(Instance, plog::info) << "value is " << ++Value;
+        };
     }
 
 private:

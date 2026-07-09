@@ -28,6 +28,15 @@ static Logme::OutputFlags MinimalLogmeFlags()
   return flags;
 }
 
+static void ConfigureLogmeLatencyQueue()
+{
+  Logme::ConsoleBackend::SetQueueLimits(
+    ASYNC_QUEUE_RECORD_CAPACITY
+    , ASYNC_QUEUE_BYTE_CAPACITY
+  );
+  Logme::ConsoleBackend::SetOverflowPolicy(Logme::ConsoleOverflowPolicy::BLOCK);
+}
+
 class LogmeDriver : public IBenchDriver
 {
 public:
@@ -41,8 +50,13 @@ public:
     return DriverCaps{true, true, BENCH_LOGME_HAS_STD_FORMAT != 0};
   }
 
-  bool Setup(BenchMode mode, const std::string& filePath, MeasureMode) override
+  bool Setup(BenchMode mode, const std::string& filePath, MeasureMode measure) override
   {
+    if (measure == MeasureMode::Latency)
+    {
+      ConfigureLogmeLatencyQueue();
+    }
+
     static int unique = 0;
     ++unique;
 
@@ -58,7 +72,9 @@ public:
 
     if (mode == BenchMode::Console || mode == BenchMode::FileConsole)
     {
-      Ch->AddBackend(std::make_shared<Logme::ConsoleBackend>(Ch));
+      auto console = std::make_shared<Logme::ConsoleBackend>(Ch);
+      console->SetAsync(measure == MeasureMode::Latency);
+      Ch->AddBackend(console);
     }
 
     if (mode == BenchMode::File || mode == BenchMode::FileConsole)
@@ -66,6 +82,11 @@ public:
       File = std::make_shared<Logme::FileBackend>(Ch);
       File->SetMaxSize(0);
       File->SetAppend(false);
+
+      if (measure == MeasureMode::Latency)
+      {
+        File->SetQueueLimit(ASYNC_QUEUE_BYTE_CAPACITY);
+      }
 
       std::error_code ec;
       //fs::remove(filePath, ec);
@@ -91,10 +112,19 @@ public:
     return true;
   }
 
-  std::function<void(void)> MakeLogOnce(FormatType format) override
+  std::function<void(void)> MakeLogOnce(FormatType format, PayloadType payload) override
   {
     if (format == FormatType::C)
     {
+      if (payload == PayloadType::DynamicString)
+      {
+        return [this, value = 0]() mutable
+        {
+          std::string message = MakeDynamicString(++value);
+          LogmeI(Ch, "%s", message.c_str());
+        };
+      }
+
       return [this, value = 0]() mutable
       {
         ++value;
@@ -104,6 +134,15 @@ public:
 
     if (format == FormatType::Cpp)
     {
+      if (payload == PayloadType::DynamicString)
+      {
+        return [this, value = 0]() mutable
+        {
+          std::string message = MakeDynamicString(++value);
+          LogmeI(Ch) << message;
+        };
+      }
+
       return [this, value = 0]() mutable
       {
         ++value;
@@ -112,6 +151,15 @@ public:
     }
 
 #if BENCH_LOGME_HAS_STD_FORMAT
+    if (payload == PayloadType::DynamicString)
+    {
+      return [this, value = 0]() mutable
+      {
+        std::string message = MakeDynamicString(++value);
+        fLogmeI(Ch, "{}", message);
+      };
+    }
+
     return [this, value = 0]() mutable
     {
       ++value;

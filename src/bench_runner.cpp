@@ -54,7 +54,7 @@ BenchResult RunBenchCase(const Cli& cli, const std::string& lib, BenchMode mode,
         break;
       }
 
-      auto logOnce = driver->MakeLogOnce(format);
+      auto logOnce = driver->MakeLogOnce(format, cli.Payload);
 
       if (cli.Measure == MeasureMode::Throughput)
       {

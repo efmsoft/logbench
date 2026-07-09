@@ -55,13 +55,22 @@ Cli ParseCli(int argc, char** argv)
       else
         cli.Measure = MeasureMode::Throughput;
     }
+    else if (StartsWith(a, "--payload="))
+    {
+      std::string payload = a.substr(10);
+      if (payload == "dynamic-string" || payload == "string")
+        cli.Payload = PayloadType::DynamicString;
+      else
+        cli.Payload = PayloadType::Integer;
+    }
     else if (a == "--help" || a == "-h")
     {
       std::cout
-        << "Usage: logbench [--mode=throughput|latency] [--seconds=N] [--cycles=N] [--repeat=N] [--warmup-ms=N] [--pause-ms=N] [--outdir=PATH] [--filter=ITEMS]\n"
-        << "Default: --mode=throughput --seconds=3 --cycles=200000 --repeat=5 --warmup-ms=300 --pause-ms=250 --outdir=.\n"
+        << "Usage: logbench [--mode=throughput|latency] [--payload=integer|dynamic-string] [--seconds=N] [--cycles=N] [--repeat=N] [--warmup-ms=N] [--pause-ms=N] [--outdir=PATH] [--filter=ITEMS]\n"
+        << "Default: --mode=throughput --payload=integer --seconds=3 --cycles=100000 --repeat=3 --warmup-ms=100 --pause-ms=150 --outdir=.\n"
         << "Filter tokens (comma-separated): library, sink mode, format, measurement mode.\n"
         << "Formats: c, cpp, fmt\n"
+        << "Payloads: integer, dynamic-string\n"
         << "Examples:\n"
         << "  --filter=logme\n"
         << "  --filter=file\n"

@@ -41,6 +41,13 @@ The benchmark currently covers:
 
 Each library participates only in the formats it actually supports. `std::format` versus `fmt` is not a runtime test parameter; it is a build-time project configuration, which naturally produces different result tables for different builds.
 
+`logbench` also supports message payload profiles:
+
+- `integer` — the original small scalar argument case, for example `value is 42`
+- `dynamic-string` — every logging call receives a real `std::string` built on the producer thread
+
+The `dynamic-string` payload exists because deferred-formatting async loggers can handle scalar values and string literals very cheaply, but dynamic strings still have to be captured/copied before the producer returns. This mode makes that cost visible instead of measuring only the best case for deferred formatting.
+
 ## What logbench Measures
 
 The benchmark supports two measurement modes:
@@ -48,7 +55,11 @@ The benchmark supports two measurement modes:
 - `throughput` — how many logging calls fit into a fixed time window
 - `latency` — total producer-side latency for a fixed number of logging calls
 
-For asynchronous libraries, the latency mode also reports drain time separately, so enqueue cost and backend completion cost do not get mixed together.
+For asynchronous libraries, the latency mode uses a bounded lossless async setup where the library exposes such controls. The benchmark uses the same record queue capacity (`8192`) and a non-dropping overflow policy (`block` or the library's native lossless backpressure strategy) for comparable async frontends. It also reports drain time separately, so producer-side cost and backend completion cost do not get mixed together.
+
+Some libraries do not expose equivalent queue controls, or use byte/buffer based backpressure instead of record based queues. Those libraries are still measured with their closest lossless/native semantics, but the output header explicitly shows that the bounded queue rule applies only where configurable.
+
+Result tables are grouped by output scenario. Each scenario (`null`, `file`, `console`, `file+console`) is printed as a separate side-by-side mini-table, so every scenario has its own unambiguous ranking. Throughput rows are sorted from higher to lower cycle count. Latency rows are sorted from lower to higher producer latency, with drain time used only as a tie-breaker.
 
 ## Benchmark Scenarios
 
@@ -71,10 +82,11 @@ To reduce unrelated noise:
 
 - a **minimal output format** is used
 - extra fields such as timestamps, thread id, logger name, and level are excluded
+- latency async queues are configured as bounded/lossless with the same record capacity where possible
 - tests are repeated multiple times
 - the **median** result is used as the final value
 
-The intention is to avoid library-specific tuning that would make the comparison less useful.
+The intention is to avoid library-specific tuning that would make the comparison less useful, while also avoiding unfair comparisons between a bounded queue with backpressure and a much larger or effectively unbounded enqueue path.
 
 ## Default Run Parameters
 
@@ -82,6 +94,7 @@ If `logbench` is started without parameters, the following defaults are used:
 
 ```text
 --mode=throughput
+--payload=integer
 --seconds=3
 --cycles=200000
 --repeat=5
@@ -90,9 +103,17 @@ If `logbench` is started without parameters, the following defaults are used:
 --outdir=.
 ```
 
+In latency mode the output includes the async queue policy, for example:
+
+```text
+async: bounded-lossless
+queue: records=8192 where record queues are configurable, bytes=4194304 where byte queues are configurable
+```
+
 Parameter summary:
 
 - `--mode` — `throughput` or `latency`
+- `--payload` — `integer` or `dynamic-string`
 - `--seconds` — duration of one throughput run
 - `--cycles` — number of logging calls in latency mode
 - `--repeat` — number of repetitions for each test
@@ -109,33 +130,25 @@ For more stable numbers, a longer run is recommended, for example:
 
 ## Build
 
-The project uses CMake and provides two explicit release configurations:
-
-- `release-std` - `fmt` test cases are built through the standard library formatting path
-- `release-fmt` - external `{fmt}` is enabled and libraries that support it are built against it
-
-The easiest way to configure and build is through presets:
+Use one explicit Release build command sequence:
 
 ```bash
-cmake --preset release-std
-cmake --build --preset build-release-std
-
-cmake --preset release-fmt
-cmake --build --preset build-release-fmt
+cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=ON
+cmake --build build/release --config Release
 ```
 
-Equivalent manual configuration:
+This form is intentionally used instead of CMake presets. It does not force the Ninja generator on Windows, so CMake can use the installed Visual Studio generator when that is the normal compiler environment.
 
-```bash
-cmake -B build/std-release -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=OFF
-cmake --build build/std-release
+Both Release selectors are kept on purpose:
 
-cmake -B build/fmt-release -DCMAKE_BUILD_TYPE=Release -DUSE_FMT=ON
-cmake --build build/fmt-release
-```
+- `-DCMAKE_BUILD_TYPE=Release` selects Release for single-configuration generators such as Ninja and Unix Makefiles.
+- `--config Release` selects Release for multi-configuration generators such as Visual Studio.
+
+On Windows, `No CMAKE_CXX_COMPILER could be found` means CMake cannot see a C++ toolchain in the current environment. Install Visual Studio / Build Tools with the C++ workload, or run the command from a Visual Studio Developer PowerShell / Developer Command Prompt.
 
 Notes:
 
+- `USE_FMT=ON` enables the external `{fmt}` build path used by the benchmark.
 - `logme` switches to external `{fmt}` when `USE_FMT=ON` through `LOGME_FMT_FORMAT=ON`.
 - `spdlog` switches to external `{fmt}` when `USE_FMT=ON` through `SPDLOG_FMT_EXTERNAL`.
 - `quill` switches to external `{fmt}` when `USE_FMT=ON` through `QUILL_FMT_EXTERNAL`.
@@ -143,15 +156,20 @@ Notes:
 
 ## Run
 
-Example:
+For single-configuration generators, the executable is normally created here:
 
 ```bash
-./build/std-release/logbench --seconds=15
-./build/std-release/logbench --mode=latency --cycles=500000
-./build/fmt-release/logbench --filter=boost.log,file,cpp
+./build/release/logbench --seconds=15
+./build/release/logbench --mode=latency --cycles=500000
+./build/release/logbench --mode=latency --payload=dynamic-string --filter=null,fmt
+./build/release/logbench --filter=boost.log,file,cpp
 ```
 
-On Windows, depending on the generator, you may run the produced executable from the build directory instead.
+For Visual Studio builds on Windows, the executable is normally under the selected configuration directory, for example:
+
+```bat
+build\release\Release\logbench.exe --seconds=15
+```
 
 ## Why This Repository Exists
 

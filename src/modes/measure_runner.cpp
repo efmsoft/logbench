@@ -47,11 +47,7 @@ RunStats RunThroughput(int seconds, int warmupMs, const std::function<void(void)
 
 RunStats RunLatency(int cycles, int warmupMs, const std::function<void(void)>& logOnce)
 {
-  uint64_t warmStart = NowMs();
-  while (ElapsedMs(warmStart) < static_cast<uint64_t>(warmupMs))
-  {
-    logOnce();
-  }
+  (void) warmupMs;
 
   auto start = Clock::now();
   for (int i = 0; i < cycles; ++i)
