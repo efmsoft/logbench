@@ -104,7 +104,7 @@ else()
   FetchContent_Declare(
     logme
     GIT_REPOSITORY https://github.com/efmsoft/logme.git
-    GIT_TAG v2.4.19
+    GIT_TAG v2.4.20
     GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(logme)
 endif()
