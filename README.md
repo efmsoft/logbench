@@ -55,9 +55,9 @@ The benchmark supports two measurement modes:
 - `throughput` — how many logging calls fit into a fixed time window
 - `latency` — total producer-side latency for a fixed number of logging calls
 
-For asynchronous libraries, the latency mode uses a bounded lossless async setup where the library exposes such controls. The benchmark uses the same record queue capacity (`8192`) and a non-dropping overflow policy (`block` or the library's native lossless backpressure strategy) for comparable async frontends. It also reports drain time separately, so producer-side cost and backend completion cost do not get mixed together.
+For asynchronous libraries, the latency mode uses a bounded lossless async setup where the library exposes such controls. The comparable latency table includes only drivers that can be configured to the benchmark async profile: bounded queue, lossless delivery, and blocking/backpressure on overflow. Drivers that cannot expose a compatible queue profile are skipped in this mode instead of being silently ranked against incompatible producer paths.
 
-Some libraries do not expose equivalent queue controls, or use byte/buffer based backpressure instead of record based queues. Those libraries are still measured with their closest lossless/native semantics, but the output header explicitly shows that the bounded queue rule applies only where configurable.
+The benchmark uses the same queue budget in the unit exposed by the library: `8192` records for record-count queues and `4194304` bytes for byte/buffer queues. Libraries that expose both limits receive both limits. It also reports drain time separately, so producer-side cost and backend completion cost do not get mixed together.
 
 Result tables are grouped by output scenario. Each scenario (`null`, `file`, `console`, `file+console`) is printed as a separate side-by-side mini-table, so every scenario has its own unambiguous ranking. Throughput rows are sorted from higher to lower cycle count. Latency rows are sorted from lower to higher producer latency, with drain time used only as a tie-breaker.
 
@@ -82,7 +82,7 @@ To reduce unrelated noise:
 
 - a **minimal output format** is used
 - extra fields such as timestamps, thread id, logger name, and level are excluded
-- latency async queues are configured as bounded/lossless with the same record capacity where possible
+- latency async queues are configured through one common bounded/lossless/block profile
 - tests are repeated multiple times
 - the **median** result is used as the final value
 
@@ -96,17 +96,19 @@ If `logbench` is started without parameters, the following defaults are used:
 --mode=throughput
 --payload=integer
 --seconds=3
---cycles=200000
---repeat=5
---warmup-ms=300
---pause-ms=250
+--cycles=8192
+--repeat=3
+--warmup-ms=100
+--pause-ms=150
 --outdir=.
 ```
 
 In latency mode the output includes the async queue policy, for example:
 
 ```text
-async: bounded-lossless
+async: bounded-lossless/block
+included: compatible bounded async drivers only
+cycles: 8192
 queue: records=8192 where record queues are configurable, bytes=4194304 where byte queues are configurable
 ```
 
@@ -119,7 +121,8 @@ Parameter summary:
 - `--repeat` — number of repetitions for each test
 - `--warmup-ms` — warm-up duration before measurement
 - `--pause-ms` — pause between repetitions
-- `--outdir` — directory for generated benchmark results
+- `--outdir` — directory for generated benchmark output files
+- `--results` — append result tables directly to a file without redirecting console output
 
 For more stable numbers, a longer run is recommended, for example:
 
@@ -160,7 +163,7 @@ For single-configuration generators, the executable is normally created here:
 
 ```bash
 ./build/release/logbench --seconds=15
-./build/release/logbench --mode=latency --cycles=500000
+./build/release/logbench --mode=latency
 ./build/release/logbench --mode=latency --payload=dynamic-string --filter=null,fmt
 ./build/release/logbench --filter=boost.log,file,cpp
 ```
@@ -169,6 +172,62 @@ For Visual Studio builds on Windows, the executable is normally under the select
 
 ```bat
 build\release\Release\logbench.exe --seconds=15
+```
+
+## Full benchmark run
+
+The repository includes an automated full run covering:
+
+- `throughput` and `latency`
+- `integer` and `dynamic-string` payloads
+- direct console output and redirected console output
+
+The automation terminates any `logbench` processes left by an interrupted previous run, configures a Release build when needed, builds `logbench`, creates a new `results.log`, runs all eight benchmark combinations, and removes known benchmark log files before and after every run. Redirected runs suppress stdout without affecting the result tables written through `--results`.
+
+For a complete reproducible check, run the command from the repository root.
+
+Linux and macOS:
+
+```bash
+./run.sh
+```
+
+Windows:
+
+```bat
+run.bat
+```
+
+To clean and rebuild the configured project before running the benchmark, use the optional `--rebuild` parameter:
+
+```bash
+./run.sh --rebuild
+```
+
+```bat
+run.bat --rebuild
+```
+
+This performs a clean build without deleting or explicitly reconfiguring `build/release`.
+
+The same full run is also available from an already configured build directory:
+
+```bash
+cmake --build build/release --config Release --target run
+```
+
+The results are written to `results.log`. During a run, both the main console and the results file show the current library, sink mode, format, pass number, and the elapsed time for completed passes. Progress can be watched from another terminal.
+
+Linux and macOS:
+
+```bash
+tail -f results.log
+```
+
+Windows command prompt or PowerShell:
+
+```bat
+powershell -NoProfile -Command "Get-Content .\results.log -Wait"
 ```
 
 ## Why This Repository Exists

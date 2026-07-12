@@ -33,7 +33,12 @@ public:
 
   DriverCaps GetCaps() const override
   {
-    return DriverCaps{false, false, true};
+    return DriverCaps{
+      false
+      , false
+      , true
+      , LatencyAsyncProfile::BoundedLosslessRecords
+    };
   }
 
   bool Setup(BenchMode mode, const std::string& filePath, MeasureMode measure) override

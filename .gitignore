@@ -9,3 +9,4 @@ boost.log_bench.log
 easylogging++_bench.log
 g3log_bench.log
 plog_bench.log
+results.log

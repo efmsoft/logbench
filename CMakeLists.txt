@@ -302,3 +302,13 @@ if (MSVC)
 else()
   target_compile_options(logbench PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+add_custom_target(run
+  COMMAND
+    ${CMAKE_COMMAND}
+      "-DLOGBENCH=$<TARGET_FILE:logbench>"
+      "-DRESULTS_FILE=${CMAKE_SOURCE_DIR}/results.log"
+      -P "${CMAKE_SOURCE_DIR}/run-full.cmake"
+  DEPENDS logbench
+  USES_TERMINAL
+  VERBATIM)

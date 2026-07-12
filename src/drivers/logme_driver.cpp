@@ -47,7 +47,12 @@ public:
 
   DriverCaps GetCaps() const override
   {
-    return DriverCaps{true, true, BENCH_LOGME_HAS_STD_FORMAT != 0};
+    return DriverCaps{
+      true
+      , true
+      , BENCH_LOGME_HAS_STD_FORMAT != 0
+      , LatencyAsyncProfile::BoundedLosslessRecordsAndBytes
+    };
   }
 
   bool Setup(BenchMode mode, const std::string& filePath, MeasureMode measure) override

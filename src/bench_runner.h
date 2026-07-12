@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -8,5 +9,10 @@
 
 namespace bench
 {
-BenchResult RunBenchCase(const Cli& cli, const std::string& lib, BenchMode mode, FormatType format);
+BenchResult RunBenchCase(
+  const Cli& cli,
+  const std::string& lib,
+  BenchMode mode,
+  FormatType format,
+  std::ostream* progressOutput = nullptr);
 } // namespace bench

@@ -52,6 +52,34 @@ const char* PayloadName(PayloadType payload)
   return "unknown";
 }
 
+const char* LatencyAsyncProfileName(LatencyAsyncProfile profile)
+{
+  switch (profile)
+  {
+    case LatencyAsyncProfile::Unsupported:
+      return "unsupported";
+
+    case LatencyAsyncProfile::BoundedLosslessRecords:
+      return "bounded-lossless-records";
+
+    case LatencyAsyncProfile::BoundedLosslessBytes:
+      return "bounded-lossless-bytes";
+
+    case LatencyAsyncProfile::BoundedLosslessRecordsAndBytes:
+      return "bounded-lossless-records+bytes";
+  }
+
+  return "unknown";
+}
+
+bool IsLatencyAsyncProfileComparable(LatencyAsyncProfile profile)
+{
+  return
+    profile == LatencyAsyncProfile::BoundedLosslessRecords ||
+    profile == LatencyAsyncProfile::BoundedLosslessBytes ||
+    profile == LatencyAsyncProfile::BoundedLosslessRecordsAndBytes;
+}
+
 std::string MakeDynamicString(uint64_t value)
 {
   std::string text = "dynamic value ";

@@ -32,6 +32,14 @@ enum class PayloadType
   DynamicString
 };
 
+enum class LatencyAsyncProfile
+{
+  Unsupported,
+  BoundedLosslessRecords,
+  BoundedLosslessBytes,
+  BoundedLosslessRecordsAndBytes
+};
+
 struct BenchCase
 {
   std::string Lib;
@@ -57,12 +65,13 @@ struct BenchResult
 
 struct Cli
 {
-  int Seconds = 3;
-  int Cycles = 100000;
+  int Seconds = 10;
+  int Cycles = 50000;
   int Repeat = 3;
   int WarmupMs = 100;
   int PauseMs = 150;
   std::string OutDir = ".";
+  std::string ResultsFile;
   std::string Filter;
   MeasureMode Measure = MeasureMode::Throughput;
   PayloadType Payload = PayloadType::Integer;
@@ -73,6 +82,7 @@ struct DriverCaps
   bool HasC = false;
   bool HasCpp = false;
   bool HasFmt = false;
+  LatencyAsyncProfile LatencyProfile = LatencyAsyncProfile::Unsupported;
 };
 
 struct RunStats

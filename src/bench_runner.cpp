@@ -1,7 +1,10 @@
 #include "bench_runner.h"
 
+#include <chrono>
 #include <exception>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 #include "bench_util.h"
@@ -10,7 +13,55 @@
 
 namespace bench
 {
-BenchResult RunBenchCase(const Cli& cli, const std::string& lib, BenchMode mode, FormatType format)
+static void ReportProgress(
+  std::ostream* progressOutput,
+  const std::string& text)
+{
+  std::cerr << text << std::endl;
+
+  if (progressOutput != nullptr)
+  {
+    *progressOutput << text << std::endl;
+    progressOutput->flush();
+  }
+}
+
+static std::string MakeProgressText(
+  const char* action,
+  const Cli& cli,
+  const std::string& lib,
+  BenchMode mode,
+  FormatType format,
+  int pass,
+  double elapsedSeconds = -1.0)
+{
+  std::ostringstream output;
+  output
+    << action
+    << ": library=" << lib
+    << " mode=" << ModeName(mode)
+    << " format=" << FormatName(format)
+    << " pass=" << pass << "/" << cli.Repeat;
+
+  if (elapsedSeconds >= 0.0)
+  {
+    output
+      << " elapsed="
+      << std::fixed
+      << std::setprecision(1)
+      << elapsedSeconds
+      << "s";
+  }
+
+  return output.str();
+}
+
+BenchResult RunBenchCase(
+  const Cli& cli,
+  const std::string& lib,
+  BenchMode mode,
+  FormatType format,
+  std::ostream* progressOutput)
 {
   BenchResult result;
   result.Lib = lib;
@@ -30,6 +81,12 @@ BenchResult RunBenchCase(const Cli& cli, const std::string& lib, BenchMode mode,
 
   for (int i = 0; i < cli.Repeat; ++i)
   {
+    int pass = i + 1;
+    ReportProgress(
+      progressOutput,
+      MakeProgressText("Testing", cli, lib, mode, format, pass));
+
+    auto passStarted = std::chrono::steady_clock::now();
     auto drivers = CreateDrivers();
     IBenchDriver* driver = nullptr;
 
@@ -67,10 +124,12 @@ BenchResult RunBenchCase(const Cli& cli, const std::string& lib, BenchMode mode,
       {
         auto stats = RunLatency(cli.Cycles, cli.WarmupMs, logOnce);
         auto drainNs = driver->TeardownAndDrainNs();
+        cyclesRuns.push_back(stats.Cycles);
         totalNsRuns.push_back(stats.TotalNs);
         nsPerCallRuns.push_back(stats.NsPerCall);
         drainRuns.push_back(drainNs);
 
+        result.Cycles = Median(cyclesRuns);
         result.TotalNs = Median(totalNsRuns);
         result.NsPerCall = Median(nsPerCallRuns);
         result.DrainNs = Median(drainRuns);
@@ -94,6 +153,12 @@ BenchResult RunBenchCase(const Cli& cli, const std::string& lib, BenchMode mode,
                 << "): " << result.ErrorMessage << "\n";
       break;
     }
+
+    auto passFinished = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration<double>(passFinished - passStarted).count();
+    ReportProgress(
+      progressOutput,
+      MakeProgressText("Completed", cli, lib, mode, format, pass, elapsed));
 
     if (i + 1 < cli.Repeat)
     {

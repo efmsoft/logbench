@@ -28,7 +28,7 @@ using Clock = std::chrono::steady_clock;
 struct BoundedLosslessQuillFrontendOptions
 {
   static constexpr quill::QueueType queue_type = quill::QueueType::BoundedBlocking;
-  static constexpr size_t initial_queue_capacity = ASYNC_QUEUE_RECORD_CAPACITY;
+  static constexpr size_t initial_queue_capacity = ASYNC_QUEUE_BYTE_CAPACITY;
   static constexpr uint32_t blocking_queue_retry_interval_ns = 800;
   static constexpr size_t unbounded_queue_max_capacity = 2ull * 1024u * 1024u * 1024u;
   static constexpr quill::HugePagesPolicy huge_pages_policy = quill::HugePagesPolicy::Never;
@@ -47,7 +47,12 @@ public:
 
   DriverCaps GetCaps() const override
   {
-    return DriverCaps{false, false, true};
+    return DriverCaps{
+      false
+      , false
+      , true
+      , LatencyAsyncProfile::BoundedLosslessBytes
+    };
   }
 
   bool Setup(BenchMode mode, const std::string& filePath, MeasureMode measure) override

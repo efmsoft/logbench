@@ -43,6 +43,10 @@ Cli ParseCli(int argc, char** argv)
       if (cli.OutDir.empty())
         cli.OutDir = ".";
     }
+    else if (StartsWith(a, "--results="))
+    {
+      cli.ResultsFile = a.substr(10);
+    }
     else if (StartsWith(a, "--pause-ms="))
     {
       cli.PauseMs = (std::max)(0, std::stoi(a.substr(11)));
@@ -66,8 +70,9 @@ Cli ParseCli(int argc, char** argv)
     else if (a == "--help" || a == "-h")
     {
       std::cout
-        << "Usage: logbench [--mode=throughput|latency] [--payload=integer|dynamic-string] [--seconds=N] [--cycles=N] [--repeat=N] [--warmup-ms=N] [--pause-ms=N] [--outdir=PATH] [--filter=ITEMS]\n"
-        << "Default: --mode=throughput --payload=integer --seconds=3 --cycles=100000 --repeat=3 --warmup-ms=100 --pause-ms=150 --outdir=.\n"
+        << "Usage: logbench [--mode=throughput|latency] [--payload=integer|dynamic-string] [--seconds=N] [--cycles=N] [--repeat=N] [--warmup-ms=N] [--pause-ms=N] [--outdir=PATH] [--results=FILE] [--filter=ITEMS]\n"
+        << "Default: --mode=throughput --payload=integer --seconds=" << cli.Seconds << " --cycles=" << cli.Cycles << " --repeat=" << cli.Repeat << " --warmup-ms=" << cli.WarmupMs << " --pause-ms=" << cli.PauseMs << " --outdir=.\n"
+        << "Results: --results=FILE appends result tables directly to FILE without redirecting console output.\n"
         << "Filter tokens (comma-separated): library, sink mode, format, measurement mode.\n"
         << "Formats: c, cpp, fmt\n"
         << "Payloads: integer, dynamic-string\n"

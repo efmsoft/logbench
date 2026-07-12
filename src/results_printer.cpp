@@ -196,7 +196,9 @@ static std::string FormatBlockSeparator(const std::vector<size_t>& widths)
   return oss.str();
 }
 
-static void PrintSideBySideBlocks(const std::vector<TextBlock>& blocks)
+static void PrintSideBySideBlocks(
+  std::ostream& output,
+  const std::vector<TextBlock>& blocks)
 {
   if (blocks.empty())
   {
@@ -213,40 +215,40 @@ static void PrintSideBySideBlocks(const std::vector<TextBlock>& blocks)
   {
     if (i != 0)
     {
-      std::cout << "    |    ";
+      output << "    |    ";
     }
 
-    std::cout
+    output
       << std::left
       << std::setw(static_cast<int>(blocks[i].Width))
       << blocks[i].Title;
   }
 
-  std::cout << "\n";
+  output << "\n";
 
   for (size_t i = 0; i < blocks.size(); ++i)
   {
     if (i != 0)
     {
-      std::cout << "    |    ";
+      output << "    |    ";
     }
 
-    std::cout << FormatBlockRow(blocks[i].Headers, blocks[i].Widths);
+    output << FormatBlockRow(blocks[i].Headers, blocks[i].Widths);
   }
 
-  std::cout << "\n";
+  output << "\n";
 
   for (size_t i = 0; i < blocks.size(); ++i)
   {
     if (i != 0)
     {
-      std::cout << "    |    ";
+      output << "    |    ";
     }
 
-    std::cout << FormatBlockSeparator(blocks[i].Widths);
+    output << FormatBlockSeparator(blocks[i].Widths);
   }
 
-  std::cout << "\n";
+  output << "\n";
 
   for (size_t rowIndex = 0; rowIndex < maxRows; ++rowIndex)
   {
@@ -256,26 +258,27 @@ static void PrintSideBySideBlocks(const std::vector<TextBlock>& blocks)
 
       if (blockIndex != 0)
       {
-        std::cout << "    |    ";
+        output << "    |    ";
       }
 
       if (rowIndex < block.Rows.size())
       {
-        std::cout << FormatBlockRow(block.Rows[rowIndex], block.Widths);
+        output << FormatBlockRow(block.Rows[rowIndex], block.Widths);
       }
       else
       {
-        std::cout << std::string(block.Width, ' ');
+        output << std::string(block.Width, ' ');
       }
     }
 
-    std::cout << "\n";
+    output << "\n";
   }
 
-  std::cout << "\n";
+  output << "\n";
 }
 
 static void PrintThroughputTable(
+  std::ostream& output,
   const std::vector<BenchResult>& results,
   const std::string& title,
   uint64_t BenchResult::* metric)
@@ -358,11 +361,13 @@ static void PrintThroughputTable(
     blocks.push_back(block);
   }
 
-  std::cout << title << "\n";
-  PrintSideBySideBlocks(blocks);
+  output << title << "\n";
+  PrintSideBySideBlocks(output, blocks);
 }
 
-static void PrintLatencyTables(const std::vector<BenchResult>& results)
+static void PrintLatencyTables(
+  std::ostream& output,
+  const std::vector<BenchResult>& results)
 {
   struct Row
   {
@@ -472,16 +477,106 @@ static void PrintLatencyTables(const std::vector<BenchResult>& results)
     blocks.push_back(block);
   }
 
-  std::cout << "Median latency (producer us/call, drain us)\n";
-  PrintSideBySideBlocks(blocks);
+  output << "Median latency (producer us/call, drain us)\n";
+  PrintSideBySideBlocks(output, blocks);
 
   if (hasMissingDrain)
   {
-    std::cout << "Note: '-' indicates that this driver does not yet provide a separate measured drain/teardown time.\n\n";
+    output << "Note: '-' indicates that this driver does not yet provide a separate measured drain/teardown time.\n\n";
   }
 }
 
-void PrintResults(const Cli& cli, const std::vector<BenchResult>& results)
+static void PrintLatencyTotalTables(
+  std::ostream& output,
+  const std::vector<BenchResult>& results)
+{
+  struct Row
+  {
+    std::string Name;
+    std::string Total;
+    uint64_t TotalNsPerCall = 0;
+    bool HasTotal = false;
+  };
+
+  std::vector<TextBlock> blocks;
+  auto modes = GetMeasuredModes(results);
+
+  for (int modeIndex : modes)
+  {
+    std::vector<Row> rows;
+
+    for (const auto& result : results)
+    {
+      if (ModeIndex(result.Mode) != modeIndex)
+      {
+        continue;
+      }
+
+      Row row;
+      row.Name = RowKey(result);
+
+      if (result.Failed)
+      {
+        row.Total = "EXC";
+      }
+      else if (result.Cycles == 0 || result.DrainNs == 0)
+      {
+        row.Total = "-";
+      }
+      else
+      {
+        row.TotalNsPerCall = (result.TotalNs + result.DrainNs) / result.Cycles;
+        row.HasTotal = true;
+        row.Total = FormatScaledNs(row.TotalNsPerCall, 1000.0);
+      }
+
+      rows.push_back(row);
+    }
+
+    std::stable_sort(
+      rows.begin(),
+      rows.end(),
+      [](const Row& left, const Row& right)
+      {
+        if (left.HasTotal != right.HasTotal)
+        {
+          return left.HasTotal;
+        }
+
+        if (!left.HasTotal)
+        {
+          return false;
+        }
+
+        if (left.TotalNsPerCall != right.TotalNsPerCall)
+        {
+          return left.TotalNsPerCall < right.TotalNsPerCall;
+        }
+
+        return false;
+      });
+
+    TextBlock block;
+    block.Title = ModeTitle(modeIndex);
+    block.Headers = {"Library", "Total"};
+
+    for (const auto& row : rows)
+    {
+      block.Rows.push_back({row.Name, row.Total});
+    }
+
+    CalculateBlockWidths(block);
+    blocks.push_back(block);
+  }
+
+  output << "Median total output time (producer + drain us/call)\n";
+  PrintSideBySideBlocks(output, blocks);
+}
+
+void PrintResults(
+  std::ostream& output,
+  const Cli& cli,
+  const std::vector<BenchResult>& results)
 {
 #if defined(USE_FMT)
   const char* buildName = "fmt-build";
@@ -489,29 +584,44 @@ void PrintResults(const Cli& cli, const std::vector<BenchResult>& results)
   const char* buildName = "std-build";
 #endif
 
-  std::cout << "build: " << buildName << "\n";
-  std::cout << "measure: " << MeasureName(cli.Measure) << "\n";
-  std::cout << "payload: " << PayloadName(cli.Payload) << "\n";
+  output << "build: " << buildName << "\n";
+  output << "measure: " << MeasureName(cli.Measure) << "\n";
+  output << "payload: " << PayloadName(cli.Payload) << "\n";
 
   if (cli.Measure == MeasureMode::Latency)
   {
-    std::cout << "async: bounded-lossless" << "\n";
-    std::cout
+    output << "async: bounded-lossless/block" << "\n";
+    output << "included: compatible bounded async drivers only" << "\n";
+    output << "cycles: " << cli.Cycles << "\n";
+    output
       << "queue: records=" << ASYNC_QUEUE_RECORD_CAPACITY
       << " where record queues are configurable"
       << ", bytes=" << ASYNC_QUEUE_BYTE_CAPACITY
       << " where byte queues are configurable"
       << "\n";
+
+    if (cli.Cycles > static_cast<int>(ASYNC_QUEUE_RECORD_CAPACITY))
+    {
+      output
+        << "warning: cycles exceeds record queue capacity; record-queue drivers may measure backpressure"
+        << " instead of producer enqueue latency"
+        << "\n";
+    }
   }
 
-  std::cout << "\n";
+  output << "\n";
 
   if (cli.Measure == MeasureMode::Throughput)
   {
-    PrintThroughputTable(results, "Median cycles per run", &BenchResult::Cycles);
+    PrintThroughputTable(
+      output,
+      results,
+      "Median cycles per run",
+      &BenchResult::Cycles);
     return;
   }
 
-  PrintLatencyTables(results);
+  PrintLatencyTables(output, results);
+  PrintLatencyTotalTables(output, results);
 }
 } // namespace bench
